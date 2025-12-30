@@ -3,12 +3,6 @@
 #include <iostream>
 #include <SFML/Graphics.hpp>
 
-/**
- * @brief Optimized tile-based map with batch rendering
- * 
- * Uses sf::VertexArray for efficient rendering (1 draw call instead of 500+)
- * Compatible with SFML 3.0
- */
 class Map {
 public:
     Map() : tileSize_(64.f) {

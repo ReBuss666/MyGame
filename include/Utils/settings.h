@@ -1,4 +1,12 @@
 #pragma once
+#include <cmath>
+
+// =============================================================================
+// MATH CONSTANTS
+// =============================================================================
+#ifndef M_PI
+    #define M_PI 3.14159265358979323846
+#endif
 
 // =============================================================================
 // WINDOW SETTINGS
@@ -13,6 +21,35 @@ inline constexpr float WINDOW_CENTER_Y = WINDOW_HEIGHT / 2.0f;
 // =============================================================================
 inline constexpr int TARGET_FPS = 60;
 inline constexpr float FPS_UPDATE_INTERVAL = 0.3f;
+
+// =============================================================================
+// RAYCASTER SETTINGS (3D MODE)
+// =============================================================================
+
+// field of view
+inline constexpr float FOV_DEGREES = 60.0f;
+inline constexpr float FOV_RADIANS = FOV_DEGREES * 3.14159265358979323846f / 180.0f;
+
+// Render distance
+inline constexpr float RAYCASTER_RENDER_DISTANCE = 20.0f;
+
+// Wall height scaling
+inline constexpr float RAYCASTER_WALL_HEIGHT = 64.0f;
+
+// Sky/Floor colors
+inline constexpr unsigned char SKY_R = 70;
+inline constexpr unsigned char SKY_G = 130;
+inline constexpr unsigned char SKY_B = 180;
+
+inline constexpr unsigned char FLOOR_R = 50;
+inline constexpr unsigned char FLOOR_G = 50;
+inline constexpr unsigned char FLOOR_B = 50;
+
+// Mouse sensitivity (3D Mode)
+inline constexpr float MOUSE_SENSITIVITY = 0.002f;
+
+//Keyboard rotation speed (3D Mode)
+inline constexpr float KEYBOARD_ROTATION_SPEED = 2.5f; // rad per sec
 
 // =============================================================================
 // FIRE EFFECT SETTINGS
@@ -49,6 +86,9 @@ inline constexpr float PLAYER_HEIGHT = 40.0f;
 
 // Collision
 inline constexpr float COLLISION_BUFFER = 1.0f;
+
+// View (3D-Mode)
+inline constexpr float PLAYER_VIEW_HEIGHT = 32.0f;
 
 // =============================================================================
 // MAP SETTINGS

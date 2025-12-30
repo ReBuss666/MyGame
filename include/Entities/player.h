@@ -6,19 +6,14 @@
 #include <cmath>
 #include <algorithm>
 
-/**
- * @brief Optimized Player with configurable constants
- * 
- * Changes from original:
- * - Uses constants from settings.h instead of magic numbers
- * - Better organized code structure
- * - English comments
- * 
- * SFML 3.0 compatible
- */
 class Player {
 public:
-    Player(sf::Vector2f position) {
+    Player(sf::Vector2f position)
+        : viewAngle_(0.0f)
+        , mouseSensitivity_(MOUSE_SENSITIVITY)
+        , lastMouseX_(0.f)
+        , firstMouse_(true)
+    {
         shape_.setSize({PLAYER_WIDTH, PLAYER_HEIGHT}); 
         shape_.setOrigin({PLAYER_WIDTH / 2.f, PLAYER_HEIGHT / 2.f});
         shape_.setPosition(position);
@@ -32,14 +27,34 @@ public:
         std::cout << "[Player] Created at (" << position.x << ", " << position.y << ")" << std::endl;
     }
 
-    void update(float deltaTime, const Map& gameMap) {
+    void update(float deltaTime, const Map& gameMap, bool mode3D = false) {
         // 1. Input handling
         sf::Vector2f inputDir{0.f, 0.f};
 
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::W)) inputDir.y -= 1.f;
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S)) inputDir.y += 1.f;
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::A)) inputDir.x -= 1.f;
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::D)) inputDir.x += 1.f;
+        if (mode3D) {
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::W)) {
+                inputDir.x += std::cos(viewAngle_);
+                inputDir.y += std::sin(viewAngle_);
+            }
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S)) {
+                inputDir.x -= std::cos(viewAngle_);
+                inputDir.y -= std::sin(viewAngle_);
+            }
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::A)) {
+                inputDir.x += std::cos(viewAngle_ - M_PI / 2.f);
+                inputDir.y += std::sin(viewAngle_ - M_PI / 2.f);
+            }
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::D)) {
+                inputDir.x += std::cos(viewAngle_ + M_PI / 2.f);
+                inputDir.y += std::sin(viewAngle_ + M_PI / 2.f);
+            }
+        } else {
+            // 2D Mode movement (axis-aligned)
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::W)) inputDir.y -= 1.f;
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S)) inputDir.y += 1.f;
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::A)) inputDir.x -= 1.f;
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::D)) inputDir.x += 1.f;
+        }
 
         // 2. Normalize diagonal movement
         if (inputDir.x != 0.f || inputDir.y != 0.f) {
@@ -58,13 +73,11 @@ public:
         }
 
         // 5. Collision detection and movement
-        // SFML 3.0: using sf::Vector2f with {} initialization
         sf::Vector2f oldPos = shape_.getPosition();
         sf::Vector2f nextPos = oldPos + (velocity_ * deltaTime);
 
         // --- X Axis ---
         sf::FloatRect nextBoundsX = shape_.getGlobalBounds();
-        // SFML 3.0: using position.x instead of left
         nextBoundsX.position.x = nextPos.x - shape_.getOrigin().x;
         nextBoundsX.position.y = oldPos.y - shape_.getOrigin().y;
 
@@ -88,17 +101,53 @@ public:
         }
     }
 
+    // mouse look for 3D mode
+    void handleMouseLook(float mouseX) {
+        if (firstMouse_) {
+            lastMouseX_ = mouseX;
+            firstMouse_ = false;
+            return;
+        }
+        float deltaX = mouseX - lastMouseX_;
+        lastMouseX_ = mouseX;
+
+        // camera rotation
+        viewAngle_ += deltaX * mouseSensitivity_;
+
+        // keep angle in [0, 2PI]
+        while (viewAngle_ < 0) viewAngle_ += 2 * M_PI;
+        while (viewAngle_ >= 2 * M_PI) viewAngle_ -= 2 * M_PI;
+    }
+
+    void handleKeyboardRotation(float deltaTime) {
+        float rotationSpeed = KEYBOARD_ROTATION_SPEED;
+
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Left)) {
+            viewAngle_ -= rotationSpeed * deltaTime;
+        }
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Right)) {
+            viewAngle_ += rotationSpeed * deltaTime;
+        }
+
+        // Нормализуем угол
+        while (viewAngle_ < 0) viewAngle_ += 2.0f * M_PI;
+        while (viewAngle_ >= 2.0f * M_PI) viewAngle_ -= 2.0f * M_PI;
+    }
+
     void draw(sf::RenderWindow& window) {
         window.draw(shape_);
     }
 
-    sf::Vector2f getPosition() const {
-        return shape_.getPosition();
-    }
+    // Getters
+    sf::Vector2f getPosition() const { return shape_.getPosition(); }
+    sf::Vector2f getVelocity() const { return velocity_; }
+    float getViewAngle() const { return viewAngle_; }
+    
+    // Setters
+    void setViewAngle(float angle) { viewAngle_ = angle; }
+    void setMouseSensitivity(float sensitivity) { mouseSensitivity_ = sensitivity; }
+    void resetMouseTracking() { firstMouse_ = true; }
 
-    sf::Vector2f getVelocity() const {
-        return velocity_;
-    }
 
 private:
     sf::Vector2f velocity_;
@@ -107,27 +156,22 @@ private:
     float acceleration_;    
     float friction_;
 
-    /**
-     * @brief Check collision with map walls
-     * 
-     * Tests 4 corners of the player's bounding box
-     * SFML 3.0: uses .position.x/y and .size.x/y
-     */
+    // FPS данные
+    float viewAngle_;         // Угол взгляда в радианах (0 = вправо, PI/2 = вниз)
+    float mouseSensitivity_;  // Чувствительность мыши
+    float lastMouseX_;        // Последняя позиция мыши X
+    bool firstMouse_;         // Первое движение мыши
+
     bool checkCollision(const sf::FloatRect& bounds, const Map& map) {
-        // SFML 3.0: using .position.x/y and .size.x/y
         float left = bounds.position.x;
         float top = bounds.position.y;
         float width = bounds.size.x;
         float height = bounds.size.y;
 
         // Test all 4 corners
-        // Top-left
         if (map.isWall(left + COLLISION_BUFFER, top + COLLISION_BUFFER)) return true;
-        // Top-right
         if (map.isWall(left + width - COLLISION_BUFFER, top + COLLISION_BUFFER)) return true;
-        // Bottom-left
         if (map.isWall(left + COLLISION_BUFFER, top + height - COLLISION_BUFFER)) return true;
-        // Bottom-right
         if (map.isWall(left + width - COLLISION_BUFFER, top + height - COLLISION_BUFFER)) return true;
 
         return false;
