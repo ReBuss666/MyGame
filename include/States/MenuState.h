@@ -37,7 +37,7 @@ public:
             shineSprite_->setColor(sf::Color(255, 255, 255, 170));
         }
 
-        fireEffect_ = std::make_unique<FireEffect>(FIRE_WIDTH, FIRE_HEIGHT, PixelSize);
+        fireEffect_ = std::make_unique<FireEffect>(window_WIDTH, window_HEIGHT, PixelSize);
         fireEffect_->triggerFlash();
 
         // Buttons now use ResourceManager internally

@@ -2,8 +2,10 @@
 #include <SFML/Graphics.hpp>
 #include <cmath>
 #include <vector>
-#include "World/map.h"
-#include "Utils/settings.h"
+#include <algorithm>
+#include <iostream>
+#include "../World/Map.h"
+#include "../Utils/settings.h"
 
 class RayCasterRenderer {
 public:
@@ -12,63 +14,80 @@ public:
         , screenHeight_(screenHeight)
         , renderDistance_(20.f)
         , wallHeight_(1.0f)
+        , wallTexture_(nullptr)
     {
-        //vertex massive for columns (2 triangles per column = 6 vertices)    
         columnVertices_.setPrimitiveType(sf::PrimitiveType::Triangles);
         columnVertices_.resize(screenWidth_ * 6);
-
-        std::cout << "[RayCasterRenderer] Initialized with screen size: "
-                  << screenWidth_ << "x" << screenHeight_ << std::endl;
     }
 
-    // Render the 3D view using raycasting
-    void render(sf::RenderWindow& window, const Map& map,
+    void setTexture(const sf::Texture* texture) {
+        wallTexture_ = texture;
+    }
+
+    void render(sf::RenderTarget& target, const Map& map,
                 sf::Vector2f playerPos, float playerAngle,
                 float fov = FOV_RADIANS) {
         
-        // Clear previous frame's vertices
-        drawBackground(window);
+        drawBackground(target);
+        float tileSize = map.getTileSize(); // Получаем размер тайла (64)
 
-        //cast rays for each column
         for (int x = 0; x < screenWidth_; ++x) {
-            // calculating ray angle
-            float cameraX = 2.0f * x / static_cast<float>(screenWidth_) - 1.0f; // from -1 to 1
+            float cameraX = 2.0f * x / static_cast<float>(screenWidth_) - 1.0f;
             float rayAngle = playerAngle + std::atan(cameraX * std::tan(fov / 2.0f));
-            
-            // ray direction
             sf::Vector2f rayDir(std::cos(rayAngle), std::sin(rayAngle));
 
-            // raycast for wall hit
             float distance = 0.0f;
-            sf::Color wallColor; // default wall color
-            if (castRay(map, playerPos, rayDir, distance, wallColor)) {
-                // Исправляем fish-eye эффект
-                float correctedDist = distance * std::cos(rayAngle - playerAngle);
-                
-                float distanceInPixels = correctedDist * map.getTileSize();
+            bool hitSide = false;
 
-                // Вычисляем высоту колонны на экране
-                float columnHeight = (screenHeight_ * wallHeight_) / distanceInPixels;
-                
-                // Ограничиваем высоту
-                if (columnHeight > screenHeight_ * 2.0f) {
-                    columnHeight = screenHeight_ * 2.0f;
+            if (castRay(map, playerPos, rayDir, distance, hitSide)) {
+                // 1. Исправление рыбьего глаза
+                float correctedDist = distance * std::cos(rayAngle - playerAngle);
+                if (correctedDist < 0.01f) correctedDist = 0.01f;
+
+                // 2. ИСПРАВЛЕНИЕ ВЫСОТЫ
+                // Дистанция в тайлах. Если стена в 1 тайле от нас, она должна заполнять экран.
+                // Убираем умножение на 64 (wallHeight_), оставляем чистую проекцию.
+                float fullLineHeight = (static_cast<float>(screenHeight_) / correctedDist);
+
+                // 3. ИСПРАВЛЕНИЕ ТЕКСТУРНЫХ КООРДИНАТ (WallX)
+                // Нам нужно найти точную позицию удара в МИРОВЫХ координатах (пикселях)
+                // distance - это тайлы, поэтому умножаем на tileSize
+                float exactHitX;
+                if (hitSide == false) {
+                    // Удар в вертикальную грань -> нас интересует Y координата мира
+                    exactHitX = playerPos.y + (distance * tileSize) * rayDir.y;
+                } else {
+                    // Удар в горизонтальную грань -> нас интересует X координата мира
+                    exactHitX = playerPos.x + (distance * tileSize) * rayDir.x;
                 }
                 
-                // Затемнение по расстоянию
+                // Переводим мировую координату в локальную координату тайла (0.0 - 1.0)
+                float wallX = exactHitX / tileSize;
+                wallX -= std::floor(wallX); // Оставляем дробную часть
+
+                // Отражение текстуры (чтобы кирпичи не зеркалились)
+                if (hitSide == false && rayDir.x > 0) wallX = 1.0f - wallX;
+                if (hitSide == true && rayDir.y < 0) wallX = 1.0f - wallX;
+
+                // 4. Затенение
                 float brightness = std::max(0.2f, 1.0f - (correctedDist / renderDistance_));
-                sf::Color shadedColor(
-                    static_cast<uint8_t>(wallColor.r * brightness),
-                    static_cast<uint8_t>(wallColor.g * brightness),
-                    static_cast<uint8_t>(wallColor.b * brightness)
+                if (hitSide) brightness *= 0.7f; 
+
+                sf::Color color(
+                    static_cast<uint8_t>(255 * brightness),
+                    static_cast<uint8_t>(255 * brightness),
+                    static_cast<uint8_t>(255 * brightness)
                 );
-                
-                // Рисуем колонну
-                drawColumn(x, columnHeight, shadedColor);
+
+                drawTexturedColumn(x, fullLineHeight, wallX, color);
+            } else {
+                drawTexturedColumn(x, 0, 0, sf::Color::Transparent); 
             }
         } 
-        // rendering all columns at once
-        window.draw(columnVertices_);
+        
+        sf::RenderStates states;
+        if (wallTexture_) states.texture = wallTexture_;
+        target.draw(columnVertices_, states);
     }
     
     void setRenderDistance(float distance) { renderDistance_ = distance; }
@@ -79,144 +98,101 @@ private:
     int screenHeight_;
     float renderDistance_;
     float wallHeight_;
-
+    const sf::Texture* wallTexture_;
     sf::VertexArray columnVertices_;
 
-    void drawBackground(sf::RenderWindow& window) {
+    void drawBackground(sf::RenderTarget& target) {
         sf::RectangleShape sky({static_cast<float>(screenWidth_), static_cast<float>(screenHeight_ / 2)});
-        sky.setPosition({0.f, 0.f});
         sky.setFillColor(sf::Color(SKY_R, SKY_G, SKY_B));
-        window.draw(sky);
+        target.draw(sky);
 
-        // Draw floor
         sf::RectangleShape floor({static_cast<float>(screenWidth_), static_cast<float>(screenHeight_ / 2)});
         floor.setPosition({0.f, static_cast<float>(screenHeight_ / 2)});
         floor.setFillColor(sf::Color(FLOOR_R, FLOOR_G, FLOOR_B));
-        window.draw(floor);
+        target.draw(floor);
     }
 
-    //vertical column rendering to vertex array
-    void drawColumn(int x, float height, sf::Color color) {
-        float halfHeight = height / 2.0f;
-        float CenterY = screenHeight_ / 2.0f;
+    void drawTexturedColumn(int x, float fullHeight, float wallX, sf::Color color) {
+        float centerY = screenHeight_ / 2.0f;
+        float topY = centerY - fullHeight / 2.0f;
+        float bottomY = centerY + fullHeight / 2.0f;
 
-        float top = CenterY - halfHeight;
-        float bottom = CenterY + halfHeight;
+        // Обрезаем по экрану
+        float drawStart = std::max(0.0f, topY);
+        float drawEnd = std::min(static_cast<float>(screenHeight_), bottomY);
 
-        //block out of screen
-        if (top < 0) top = 0;
-        if (bottom >screenHeight_) bottom = screenHeight_;
+        if (drawStart >= drawEnd) {
+            int idx = x * 6;
+            for(int i=0; i<6; ++i) columnVertices_[idx+i] = sf::Vertex(sf::Vector2f(0,0), sf::Color::Transparent);
+            return;
+        }
+
+        float textureHeight = wallTexture_ ? static_cast<float>(wallTexture_->getSize().y) : 64.f;
+        float textureWidth  = wallTexture_ ? static_cast<float>(wallTexture_->getSize().x) : 64.f;
+
+        // Координата X на текстуре
+        float texX = wallX * textureWidth;
+
+        // Координата Y на текстуре (с учетом обрезки, если стена не влезает в экран)
+        // d - сколько пикселей стены "ушло" за верхний край экрана
+        float d = (drawStart - centerY + fullHeight / 2.0f); 
+        
+        float texY_start = (d * textureHeight) / fullHeight;
+        float heightToDraw = drawEnd - drawStart;
+        float texY_end = ((d + heightToDraw) * textureHeight) / fullHeight;
 
         float left = static_cast<float>(x);
         float right = left + 1.0f;
-
         int idx = x * 6;
 
-        //first triangle 
-        columnVertices_[idx + 0].position = sf::Vector2f{left, top};
-        columnVertices_[idx + 0].color = color;
-
-        columnVertices_[idx + 1].position = sf::Vector2f{left, bottom};
-        columnVertices_[idx + 1].color = color;
+        // Заполняем вершины с правильными UV-координатами
+        columnVertices_[idx + 0] = sf::Vertex({left, drawStart}, color, {texX, texY_start});
+        columnVertices_[idx + 1] = sf::Vertex({left, drawEnd}, color, {texX, texY_end});
+        columnVertices_[idx + 2] = sf::Vertex({right, drawStart}, color, {texX + 1.f, texY_start});
         
-        columnVertices_[idx + 2].position = sf::Vector2f{right, top};
-        columnVertices_[idx + 2].color = color;
-        
-        //second triangle
-
-        columnVertices_[idx + 3].position = sf::Vector2f{right, top};
-        columnVertices_[idx + 3].color = color;
-        
-        columnVertices_[idx + 4].position = sf::Vector2f{left, bottom};
-        columnVertices_[idx + 4].color = color;
-
-        columnVertices_[idx + 5].position = sf::Vector2f{right, bottom};
-        columnVertices_[idx + 5].color = color;
+        columnVertices_[idx + 3] = columnVertices_[idx + 2];
+        columnVertices_[idx + 4] = columnVertices_[idx + 1];
+        columnVertices_[idx + 5] = sf::Vertex({right, drawEnd}, color, {texX + 1.f, texY_end});
     }
 
     bool castRay(const Map& map, sf::Vector2f startPos, sf::Vector2f direction, 
-                float& distance, sf::Color& wallColor) {
+                float& distance, bool& hitSide) {
         float tileSize = map.getTileSize();
-
-        // grid coordinates
         int mapX = static_cast<int>(startPos.x / tileSize);
         int mapY = static_cast<int>(startPos.y / tileSize);
 
-        // Length of ray from one x or y side to next x or y side
         float deltaDistX = (direction.x == 0) ? 1e30f : std::abs(tileSize / direction.x);
         float deltaDistY = (direction.y == 0) ? 1e30f : std::abs(tileSize / direction.y);
-
-        // Step direction and initial sideDist
         int stepX = (direction.x < 0) ? -1 : 1;
         int stepY = (direction.y < 0) ? -1 : 1;
 
-        // Calculate initial side distances
-        float sideDistX, sideDistY;
+        float sideDistX = (direction.x < 0) ? (startPos.x / tileSize - mapX) * deltaDistX : (mapX + 1.0f - startPos.x / tileSize) * deltaDistX;
+        float sideDistY = (direction.y < 0) ? (startPos.y / tileSize - mapY) * deltaDistY : (mapY + 1.0f - startPos.y / tileSize) * deltaDistY;
 
-        // Starting side distances 
-        float posInTileX = (startPos.x / tileSize) - mapX;
-        float posInTileY = (startPos.y / tileSize) - mapY;
-
-        if (direction.x < 0) {
-            sideDistX = posInTileX * deltaDistX;
-        } else {
-            sideDistX = (1.0f - posInTileX) * deltaDistX;
-        }
-
-        if (direction.y < 0) {
-            sideDistY = posInTileY * deltaDistY;
-        } else {
-            sideDistY = (1.0f - posInTileY) * deltaDistY;
-        }
-        // Perform DDA
         bool hit = false;
-        bool side = false;
-        int maxSteps = static_cast<int>(renderDistance_ * 2); // Limit steps to avoid infinite loops
+        int maxSteps = static_cast<int>(renderDistance_ * 2); 
         
         for (int step = 0; step < maxSteps && !hit; ++step) {
-            // Calculate the next step
             if (sideDistX < sideDistY) {
                 sideDistX += deltaDistX;
                 mapX += stepX;
-                side = false;
+                hitSide = false;
             } else {
                 sideDistY += deltaDistY;
                 mapY += stepY;
-                side = true;
+                hitSide = true;
             }
 
-            // Check if ray has hit a wall
-            if (mapX < 0 || mapX >= map.getWidth() ||
-            mapY < 0 || mapY >= map.getHeight()) {
-                break;
-            }
-
-            // Check if the ray has hit a wall
-            if (map.isWall(mapX * tileSize + tileSize / 2, mapY * tileSize + tileSize / 2)) {
-                hit = true; 
-            }
+            if (mapX < 0 || mapX >= map.getWidth() || mapY < 0 || mapY >= map.getHeight()) break;
+            if (map.isWall(mapX * tileSize + tileSize / 2, mapY * tileSize + tileSize / 2)) hit = true; 
         }
 
         if (hit) {
-            if (side) {
-                distance = (mapY - startPos.y / tileSize + (1 - stepY) / 2) / direction.y;
-            } else {
-                distance = (mapX - startPos.x / tileSize + (1 - stepX) / 2) / direction.x;
-            }
-
-            // absolute distance
+            if(hitSide) distance = (mapY - startPos.y / tileSize + (1 - stepY) / 2) / direction.y;
+            else        distance = (mapX - startPos.x / tileSize + (1 - stepX) / 2) / direction.x;
             distance = std::abs(distance);
-
-            // different colors
-            if (side) {
-                wallColor = sf::Color(180, 50, 50); // Darker for y-sides
-            } else {
-                wallColor = sf::Color(255, 80, 80); // Brighter for x-sides
-            }
-
             return true;
         }
-
         return false;
     }
 };

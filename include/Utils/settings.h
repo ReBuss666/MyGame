@@ -54,9 +54,9 @@ inline constexpr float KEYBOARD_ROTATION_SPEED = 2.5f; // rad per sec
 // =============================================================================
 // FIRE EFFECT SETTINGS
 // =============================================================================
-inline constexpr int FIRE_HEIGHT = 300;
-inline constexpr int FIRE_WIDTH = 480; 
-inline constexpr int PixelSize = WINDOW_WIDTH / FIRE_WIDTH;
+inline constexpr int window_HEIGHT = 300;
+inline constexpr int window_WIDTH = 480; 
+inline constexpr int PixelSize = WINDOW_WIDTH / window_WIDTH;
 inline constexpr int FLASH_DURATION = 180;
 
 // =============================================================================
@@ -108,6 +108,7 @@ inline constexpr float MAX_FALL_SPEED = 1000.0f; // Maximum falling speed (if ne
 namespace Assets {
     // Textures
     inline constexpr const char* LOGO_TEXTURE = "../assets/logo.png";
+    inline constexpr const char* WALL_TEXTURE = "../assets/textures/walls/brick.png";
     
     // Fonts
     inline constexpr const char* FONT_PRIMARY = "../assets/fonts/Orbitron-Black.ttf";
