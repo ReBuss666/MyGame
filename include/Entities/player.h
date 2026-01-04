@@ -155,7 +155,6 @@ private:
     float maxSpeed_;
     float acceleration_;    
     float friction_;
-    int currentSector_ = 0;
 
     // FPS данные
     float viewAngle_;         // Угол взгляда в радианах (0 = вправо, PI/2 = вниз)
