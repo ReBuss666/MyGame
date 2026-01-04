@@ -7,6 +7,7 @@
 #include "../Entities/player.h"
 #include "../Rendering/RaycasterRenderer.h"
 #include <SFML/Graphics.hpp>
+#include <SFML/Window.hpp>
 #include <iostream>
 #include <memory>
 #include <cmath>
@@ -18,7 +19,6 @@ public:
     void onEnter() override {
         std::cout << "=== PlayState: Entering ===" << std::endl;
         
-        // Используем внутренние константы
         if (!renderTexture_.resize({INTERNAL_WIDTH, INTERNAL_HEIGHT})) {
             std::cerr << "ERROR: Failed to create render texture!" << std::endl;
         }
@@ -50,6 +50,11 @@ public:
     }
     
     void onExit() override {
+        if (window_) {
+            window_->setMouseCursorVisible(true);
+            window_->setMouseCursorGrabbed(false);
+        }
+
         raycaster_.reset();
         player_.reset();
         renderSprite_.reset();
@@ -59,10 +64,17 @@ public:
     void handleInput(const sf::Event& event) override {
         if (const auto* keyPressed = event.getIf<sf::Event::KeyPressed>()) {
             if (keyPressed->code == sf::Keyboard::Key::Escape) {
-                if (stateManager_) stateManager_->pushState("Pause");
+                if (mouseLocked_) {
+                    unlockMouse();
+                } else {
+                    if (stateManager_) stateManager_->pushState("Pause");
+                }
             }
             if (keyPressed->code == sf::Keyboard::Key::Tab) {
                 mode3D_ = !mode3D_;
+                if (!mode3D_) {
+                    unlockMouse();
+                }
             }
             if (keyPressed->code == sf::Keyboard::Key::M && mode3D_) {
                 mouseLocked_ = !mouseLocked_;
@@ -71,8 +83,26 @@ public:
         }
 
         if (const auto* mouseMoved = event.getIf<sf::Event::MouseMoved>()) {
-            if (mouseLocked_ && mode3D_ && player_) {
-                player_->handleMouseLook(static_cast<float>(mouseMoved->position.x));
+            if (mouseLocked_ && mode3D_ && window_) {
+                //center
+                sf::Vector2u windowSize = window_->getSize();
+                sf::Vector2i center(windowSize.x / 2, windowSize.y / 2);
+
+                float deltaX = static_cast<float>(mouseMoved->position.x - center.x);
+
+                if (std::abs(deltaX) > 0.5f) {
+                    mouseRotation_ += deltaX* MOUSE_SENSITIVITY;
+                }
+
+                if (std::abs(deltaX) > 5.f) {
+                    sf::Mouse::setPosition(center, *window_);
+                }
+            }
+        }
+
+        if (const auto* mousePressed = event.getIf<sf::Event::MouseButtonPressed>()) {
+            if (mode3D_ && !mouseLocked_ && mousePressed->button == sf::Mouse::Button::Left) {
+                lockMouse();
             }
         }
     }
@@ -81,10 +111,19 @@ public:
         if (player_) {
             player_->update(deltaTime, map_, mode3D_);
             player_->handleKeyboardRotation(deltaTime);
+
+            if (mouseLocked_ && std::abs(mouseRotation_) > 0.001f) {
+                float currentAngle = player_->getViewAngle();
+                player_->setViewAngle(currentAngle + mouseRotation_);
+                mouseRotation_ = 0.f;
+            }
         }
     }
 
     void render(sf::RenderWindow& window) override {
+        if (!window_) {
+            window_ = &window;
+        }
         if (mode3D_) {
             renderTexture_.clear(sf::Color::Black);
             
@@ -125,10 +164,54 @@ private:
     std::unique_ptr<sf::Sprite> renderSprite_;
     
     sf::Texture* wallTexture_ = nullptr;
+    sf::RenderWindow* window_ = nullptr;
 
     bool mode3D_ = true;
     bool mouseLocked_ = false;
+    float mouseRotation_ = 0.f;
+
+    void lockMouse() {
+        if (!window_) return;
+
+        mouseLocked_ = true;
+        mouseRotation_ = 0.f;
+        
+        window_->setMouseCursorVisible(false);
+        window_->setMouseCursorGrabbed(true);
+
+        //центрирование
+        sf::Vector2u windowSize = window_->getSize();
+        sf::Mouse::setPosition(
+            sf::Vector2i(windowSize.x / 2, windowSize.y / 2),
+
+            *window_
+        );
+
+        if (player_) {
+            player_->resetMouseTracking();
+        }
+
+        std::cout << "[playstate] Mouse locked" << std::endl;
+    }
     
+    void unlockMouse() {
+        if (!window_) return;
+
+        mouseLocked_ = false;
+        window_->setMouseCursorVisible(true);
+        window_->setMouseCursorGrabbed(false);
+
+        std::cout << "[PlayState] Cursor unlocked" << std::endl;
+    }
+
+    void toggleMouseLock() {
+        if (mouseLocked_) {
+            unlockMouse();
+        } else {
+            lockMouse();
+        }
+    }
+
     void drawCrosshair(sf::RenderWindow& window) {
        float centerX = window.getSize().x / 2.f;
        float centerY = window.getSize().y / 2.f;
@@ -150,9 +233,13 @@ private:
         static sf::Font* font = ResourceManager::getInstance().getFont(Assets::FONT_PRIMARY);
         if (font) {
             sf::Text text(*font);
-            text.setString(mode3D_ ? "3D Mode" : "2D Mode");
+            std::string modeText = mode3D_ ? "3D Mode" : "2D Mode";
+            std::string mouseText = mouseLocked_ ? " | Mouse: LOCKED [ESC to unlock]" : " | Click or [M] to lock mouse";
+            
+            text.setString(modeText + mouseText);
             text.setCharacterSize(20);
             text.setPosition({10.f, 10.f});
+            text.setFillColor(sf::Color::White);
             window.draw(text);
         }
     }

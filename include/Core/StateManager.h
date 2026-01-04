@@ -31,6 +31,13 @@ public:
         std::cout << "[StateManager] Registered state: " << name << std::endl;
     }
 
+    void exitGame() {
+        std::cout << "[StateManager] Closing game..." << std::endl;
+        if (window_) {
+            window_->close();
+        }
+    }
+
     void switchTo(const std::string& stateName) {
         std::cout << "[StateManager] Switching to: " << stateName << std::endl;
         

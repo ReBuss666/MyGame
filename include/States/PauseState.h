@@ -99,9 +99,7 @@ private:
             std::cout << ">>> Exiting Game <<<" << std::endl;
             exiting_ = true;
             // Clear all states to close the game
-            while (!stateManager_->isEmpty()) {
-                stateManager_->popState();
-            }
+            stateManager_->exitGame();
         }
     }
 };

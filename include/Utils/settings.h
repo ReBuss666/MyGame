@@ -46,7 +46,7 @@ inline constexpr unsigned char FLOOR_G = 50;
 inline constexpr unsigned char FLOOR_B = 50;
 
 // Mouse sensitivity (3D Mode)
-inline constexpr float MOUSE_SENSITIVITY = 0.002f;
+inline constexpr float MOUSE_SENSITIVITY = 0.00034f;
 
 //Keyboard rotation speed (3D Mode)
 inline constexpr float KEYBOARD_ROTATION_SPEED = 2.5f; // rad per sec

@@ -42,15 +42,15 @@ int main() {
                 window.close();
             }
             
-            // Forward input to current state
+            // ввод в состояния
             stateManager.handleInput(*event);
         }
         
-        // Update current state
+       // состояния игры от времени
         float deltaTime = clock.restart().asSeconds();
         stateManager.update(deltaTime);
         
-        // Render current state
+       // рендер 
         window.clear(sf::Color::Black);
         stateManager.render(window);
         window.display();
