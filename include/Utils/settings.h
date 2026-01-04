@@ -60,6 +60,12 @@ inline constexpr int PixelSize = WINDOW_WIDTH / window_WIDTH;
 inline constexpr int FLASH_DURATION = 180;
 
 // =============================================================================
+// PLAYSTATE RESOLUTION
+// =============================================================================
+static constexpr unsigned int INTERNAL_WIDTH = 960;
+static constexpr unsigned int INTERNAL_HEIGHT = 600;
+
+// =============================================================================
 // MENU/UI SETTINGS
 // =============================================================================
 // Logo Animation

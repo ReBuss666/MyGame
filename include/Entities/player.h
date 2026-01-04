@@ -32,6 +32,7 @@ public:
         sf::Vector2f inputDir{0.f, 0.f};
 
         if (mode3D) {
+            // 3D Mode: WASD movement relative to view direction
             if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::W)) {
                 inputDir.x += std::cos(viewAngle_);
                 inputDir.y += std::sin(viewAngle_);
@@ -49,7 +50,7 @@ public:
                 inputDir.y += std::sin(viewAngle_ + M_PI / 2.f);
             }
         } else {
-            // 2D Mode movement (axis-aligned)
+            // 2D Mode: Axis-aligned movement
             if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::W)) inputDir.y -= 1.f;
             if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S)) inputDir.y += 1.f;
             if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::A)) inputDir.x -= 1.f;
@@ -72,11 +73,11 @@ public:
             velocity_ = (velocity_ / currentSpeed) * maxSpeed_;
         }
 
-        // 5. Collision detection and movement
+        // 5. Collision detection and movement (X and Y axes separately)
         sf::Vector2f oldPos = shape_.getPosition();
         sf::Vector2f nextPos = oldPos + (velocity_ * deltaTime);
 
-        // --- X Axis ---
+        // Test X movement
         sf::FloatRect nextBoundsX = shape_.getGlobalBounds();
         nextBoundsX.position.x = nextPos.x - shape_.getOrigin().x;
         nextBoundsX.position.y = oldPos.y - shape_.getOrigin().y;
@@ -84,39 +85,38 @@ public:
         if (!checkCollision(nextBoundsX, gameMap)) {
             shape_.move({velocity_.x * deltaTime, 0.f});
         } else {
-            velocity_.x = 0.f;
+            velocity_.x = 0.f; // Stop horizontal movement on collision
         }
 
-        // --- Y Axis ---
+        // Test Y movement
         sf::Vector2f currentPosAfterX = shape_.getPosition();
         sf::FloatRect nextBoundsY = shape_.getGlobalBounds();
-        
         nextBoundsY.position.x = currentPosAfterX.x - shape_.getOrigin().x;
         nextBoundsY.position.y = nextPos.y - shape_.getOrigin().y;
 
         if (!checkCollision(nextBoundsY, gameMap)) {
             shape_.move({0.f, velocity_.y * deltaTime});
         } else {
-            velocity_.y = 0.f;
+            velocity_.y = 0.f; // Stop vertical movement on collision
         }
     }
 
-    // mouse look for 3D mode
     void handleMouseLook(float mouseX) {
         if (firstMouse_) {
             lastMouseX_ = mouseX;
             firstMouse_ = false;
             return;
         }
+        
         float deltaX = mouseX - lastMouseX_;
         lastMouseX_ = mouseX;
 
-        // camera rotation
+        // Rotate camera
         viewAngle_ += deltaX * mouseSensitivity_;
 
-        // keep angle in [0, 2PI]
-        while (viewAngle_ < 0) viewAngle_ += 2 * M_PI;
-        while (viewAngle_ >= 2 * M_PI) viewAngle_ -= 2 * M_PI;
+        // Keep angle in [0, 2PI]
+        while (viewAngle_ < 0) viewAngle_ += 2.0f * M_PI;
+        while (viewAngle_ >= 2.0f * M_PI) viewAngle_ -= 2.0f * M_PI;
     }
 
     void handleKeyboardRotation(float deltaTime) {
@@ -129,7 +129,7 @@ public:
             viewAngle_ += rotationSpeed * deltaTime;
         }
 
-        // Нормализуем угол
+        // Normalize angle
         while (viewAngle_ < 0) viewAngle_ += 2.0f * M_PI;
         while (viewAngle_ >= 2.0f * M_PI) viewAngle_ -= 2.0f * M_PI;
     }
@@ -148,7 +148,6 @@ public:
     void setMouseSensitivity(float sensitivity) { mouseSensitivity_ = sensitivity; }
     void resetMouseTracking() { firstMouse_ = true; }
 
-
 private:
     sf::Vector2f velocity_;
     sf::RectangleShape shape_;
@@ -156,18 +155,52 @@ private:
     float acceleration_;    
     float friction_;
 
-    // FPS данные
-    float viewAngle_;         // Угол взгляда в радианах (0 = вправо, PI/2 = вниз)
-    float mouseSensitivity_;  // Чувствительность мыши
-    float lastMouseX_;        // Последняя позиция мыши X
-    bool firstMouse_;         // Первое движение мыши
+    // FPS camera data
+    float viewAngle_;         // View angle in radians (0 = right, PI/2 = down)
+    float mouseSensitivity_;  // Mouse sensitivity
+    float lastMouseX_;        // Last mouse X position
+    bool firstMouse_;         // First mouse movement flag
 
+    /**
+     * @brief Check collision with map walls
+     * 
+     * Tests multiple points around the player's bounding box
+     * to ensure accurate collision detection.
+     */
     bool checkCollision(const sf::FloatRect& bounds, const Map& map) {
+        // Get bounds edges
         float left = bounds.position.x;
         float top = bounds.position.y;
-        float width = bounds.size.x;
-        float height = bounds.size.y;
+        float right = left + bounds.size.x;
+        float bottom = top + bounds.size.y;
+        
+        // Add small buffer to prevent getting stuck
+        const float buffer = COLLISION_BUFFER;
+        left += buffer;
+        top += buffer;
+        right -= buffer;
+        bottom -= buffer;
 
-        return false;
+        // Check corners and midpoints (9 points total for thorough detection)
+        const sf::Vector2f testPoints[] = {
+            {left, top},           // Top-left
+            {right, top},          // Top-right
+            {left, bottom},        // Bottom-left
+            {right, bottom},       // Bottom-right
+            {(left + right) / 2.f, top},     // Top-middle
+            {(left + right) / 2.f, bottom},  // Bottom-middle
+            {left, (top + bottom) / 2.f},    // Left-middle
+            {right, (top + bottom) / 2.f},   // Right-middle
+            {(left + right) / 2.f, (top + bottom) / 2.f}  // Center
+        };
+
+        // Check if any test point collides with a wall
+        for (const auto& point : testPoints) {
+            if (map.isWall(point.x, point.y)) {
+                return true; // Collision detected
+            }
+        }
+
+        return false; // No collision
     }
 };

@@ -15,7 +15,7 @@ public:
     void onEnter() override {
         std::cout << "=== MenuState: Loading resources ===" << std::endl;
 
-        // OPTIMIZATION: Load texture from ResourceManager (cached)
+        // Load texture from ResourceManager (cached)
         logoTexture_ = ResourceManager::getInstance().getTexture("../assets/logo.png");
         
         if (!logoTexture_) {
@@ -37,10 +37,11 @@ public:
             shineSprite_->setColor(sf::Color(255, 255, 255, 170));
         }
 
+        // Use correct constant names
         fireEffect_ = std::make_unique<FireEffect>(window_WIDTH, window_HEIGHT, PixelSize);
         fireEffect_->triggerFlash();
 
-        // Buttons now use ResourceManager internally
+        // Create buttons
         buttons_.reserve(3);
         buttons_.push_back(std::make_unique<Button>("Start Game", 
             sf::Vector2f(WINDOW_CENTER_X, MENU_BUTTON_START_Y)));
@@ -49,6 +50,7 @@ public:
         buttons_.push_back(std::make_unique<Button>("Exit", 
             sf::Vector2f(WINDOW_CENTER_X, MENU_BUTTON_START_Y + MENU_BUTTON_SPACING * 2)));
 
+        // Set initial button alpha
         buttonsFadeAlpha_ = 0.f;
         for (auto& button : buttons_) {
             button->setAlpha(0.f);
@@ -58,7 +60,6 @@ public:
         shinePos_ = -1.f;
         targetY_ = WINDOW_HEIGHT / 2.5f - LOGO_OFFSET_Y;
         logoAnimationComplete_ = false;
-        buttonsFadeAlpha_ = 0.f;
         
         std::cout << "=== MenuState: Loaded (using cached resources) ===" << std::endl;
     }
@@ -66,14 +67,11 @@ public:
     void onExit() override {
         std::cout << "=== MenuState: Releasing resources ===" << std::endl;
         
-        // Clear local resources
         buttons_.clear();
         fireEffect_.reset();
         shineSprite_.reset();
         logoSprite_.reset();
-        
-        // NOTE: logoTexture_ is just a pointer - actual texture stays in ResourceManager
-        logoTexture_ = nullptr;
+        logoTexture_ = nullptr; // Just a pointer, actual texture stays in ResourceManager
 
         std::cout << "=== MenuState: Resources released (textures cached) ===" << std::endl;
     }
@@ -93,14 +91,9 @@ public:
     }
 
     void handleInput(const sf::Event& event) override {
+        // Skip animation on any input
         if (!logoAnimationComplete_ || buttonsFadeAlpha_ < 255.f) {
-           
-            if (event.is<sf::Event::KeyPressed>()) {
-                skipAnimation();
-                return;
-            }
-
-            if (event.is<sf::Event::MouseButtonPressed>()) {
+            if (event.is<sf::Event::KeyPressed>() || event.is<sf::Event::MouseButtonPressed>()) {
                 skipAnimation();
                 return;
             }
@@ -111,10 +104,10 @@ public:
                     static_cast<float>(mouseMoved->position.y)
                 );
             }
-
             return;
         }
 
+        // Handle button clicks
         if (const auto* mousePressed = event.getIf<sf::Event::MouseButtonPressed>()) {
             sf::Vector2f mousePos(
                 static_cast<float>(mousePressed->position.x),
@@ -129,6 +122,7 @@ public:
             }
         }
 
+        // Track mouse position
         if (const auto* mouseMoved = event.getIf<sf::Event::MouseMoved>()) {
             mousePos_ = sf::Vector2f(
                 static_cast<float>(mouseMoved->position.x),
@@ -140,10 +134,12 @@ public:
     void update(float deltaTime) override {
         totalTime_ += deltaTime;
 
+        // Update fire effect
         if (fireEffect_) {
             fireEffect_->update();
         }
 
+        // Logo animation
         if (logoSprite_) {
             sf::Vector2f currentPos = logoSprite_->getPosition();
             if (currentPos.y > targetY_) {
@@ -153,7 +149,7 @@ public:
                     logoAnimationComplete_ = true;
                     std::cout << "=== Logo animation complete - buttons fading in ===" << std::endl;
                 }
-                // Slight floating effect
+                // Subtle floating effect
                 float offset = std::sin(totalTime_ * 2.0f) * 2.0f;
                 logoSprite_->setPosition({WINDOW_CENTER_X, targetY_ + offset});
             }
@@ -163,7 +159,7 @@ public:
             }
         }
 
-        //shine effect
+        // Shine effect
         shinePos_ += deltaTime * 1.5f;
         if (shinePos_ > 2.f) shinePos_ = -1.f;
         
@@ -173,7 +169,7 @@ public:
                 static_cast<std::uint8_t>(shineFactor * 150)));
         }
 
-        //buttons fade-in
+        // Buttons fade-in
         if (logoAnimationComplete_ && buttonsFadeAlpha_ < 255.f) {
             buttonsFadeAlpha_ += 300.f * deltaTime;
             if (buttonsFadeAlpha_ > 255.f) {
@@ -185,7 +181,7 @@ public:
             }
         }
         
-        // Update buttons only after logo animation is complete
+        // Update buttons
         if (logoAnimationComplete_) {
             for (auto& button : buttons_) {
                 button->update(mousePos_);
@@ -237,13 +233,16 @@ private:
             logoSprite_->setPosition({WINDOW_CENTER_X, targetY_});
         }
 
-        //flash
         if (fireEffect_) {
             fireEffect_->triggerFlash();
         }
 
-        // end off animation
         logoAnimationComplete_ = true;
+        buttonsFadeAlpha_ = 255.f;
+        
+        for (auto& button : buttons_) {
+            button->setAlpha(255.f);
+        }
     }
 
     void handleButtonClick(const std::string& buttonName) {
@@ -253,6 +252,7 @@ private:
         } 
         else if (buttonName == "Options") {
             std::cout << ">>> Options button clicked! <<<" << std::endl;
+            // TODO: Implement options menu
         } 
         else if (buttonName == "Exit") {
             std::cout << ">>> Exit button clicked! <<<" << std::endl;

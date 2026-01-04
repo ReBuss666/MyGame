@@ -153,9 +153,6 @@ public:
     }
 
 private:
-    static constexpr unsigned int INTERNAL_WIDTH = 480;
-    static constexpr unsigned int INTERNAL_HEIGHT = 300;
-
     std::unique_ptr<Player> player_;
     Map map_;
     std::unique_ptr<RayCasterRenderer> raycaster_;
