@@ -1,129 +1,54 @@
 #pragma once
 #include <vector>
-#include <iostream>
 #include <SFML/Graphics.hpp>
+
+// x, y
+struct Vertex {
+    float x, y;
+};
+
+struct Sector {
+    float floorHeight;
+    float ceilHeight;
+    sf::Color floorColor;
+    sf::Color ceilColor;
+    //int texture id потом
+};
+
+struct Wall {
+    int v1, v2;
+    int frontSector;
+    int backSector;
+    sf::Color color;
+};
 
 class Map {
 public:
-    Map() : tileSize_(64.f) {
-        // Initialize grid
-        grid_ = {
-            {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
-            {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
-            {1,0,0,0,0,0,0,0,0,1,1,1,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,1},
-            {1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1},
-            {1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1},
-            {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
-            {1,0,0,0,0,0,0,0,0,1,1,1,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,1},
-            {1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1},
-            {1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1},
-            {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
-            {1,0,0,0,0,0,0,0,0,1,1,1,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,1},
-            {1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1},
-            {1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1},
-            {1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1},
-            {1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1},
-            {1,0,0,0,0,0,0,0,0,1,0,0,1,1,1,0,0,1,0,1,0,0,0,0,0,0,0,0,0,1},
-            {1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1},
-            {1,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1},
-            {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}
+    std::vector<Vertex> vertices;
+    std::vector<Sector> sectors;
+    std::vector<Wall> walls;
+    
+    Map() {
+        loadTestLevel();
+    }
+    void loadTestLevel() {
+        vertices = {
+            {100.f, 100.f}, {400.f, 100.f}, {400.f, 400.f}, {100.f, 400.f}
         };
 
-        mapHeight_ = static_cast<int>(grid_.size());
-        mapWidth_ = mapHeight_ > 0 ? static_cast<int>(grid_[0].size()) : 0;
-        
-        // Build vertex array once at construction
-        buildVertexArray();
-        
-        std::cout << "[Map] Initialized: " << mapWidth_ << "x" << mapHeight_ 
-                  << " (" << wallVertices_.getVertexCount() << " vertices)" << std::endl;
+        sectors.push_back({0.f, 100.f, sf::Color(50, 50, 50), sf::Color(100,100,100)}); //0 пол 100 потолок
+
+        // 4 Стены, все смотрят внутрь сектора 0. backSector = -1 (глухие)
+        walls.push_back({0, 1, 0, -1, sf::Color::Red});
+        walls.push_back({1, 2, 0, -1, sf::Color::Green});
+        walls.push_back({2, 3, 0, -1, sf::Color::Blue});
+        walls.push_back({3, 0, 0, -1, sf::Color::Yellow});
     }
 
-    bool isWall(float x, float y) const {
-        int gridX = static_cast<int>(x / tileSize_);
-        int gridY = static_cast<int>(y / tileSize_);
-        if (gridX < 0 || gridX >= mapWidth_ || gridY < 0 || gridY >= mapHeight_) return true;
-        return grid_[gridY][gridX] != 0;
-    }
-
-    void render(sf::RenderWindow& window) {
-        // Single draw call for all walls - HUGE performance improvement!
-        window.draw(wallVertices_);
-    }
-
-    float getTileSize() const { return tileSize_; }
-    int getWidth() const { return mapWidth_; }
-    int getHeight() const { return mapHeight_; }
-
-private:
-    float tileSize_;
-    int mapWidth_;
-    int mapHeight_;
-    std::vector<std::vector<int>> grid_;
-    sf::VertexArray wallVertices_;
-
-    /**
-     * @brief Build vertex array for all walls
-     * 
-     * Called once at construction. Creates 6 vertices (2 triangles) per wall tile.
-     * SFML 3.0 compatible - uses sf::Vector2f with proper initialization.
-     */
-    void buildVertexArray() {
-        // Count walls first
-        int wallCount = 0;
-        for (int y = 0; y < mapHeight_; ++y) {
-            for (int x = 0; x < mapWidth_; ++x) {
-                if (grid_[y][x] != 0) {
-                    wallCount++;
-                }
-            }
+    std::pair<sf::Vector2f, sf::Vector2f> getWallCoords(int wallIndex) const {
+        return {
+            {vertices[walls[wallIndex].v1].x, vertices[walls[wallIndex].v1].y},
+            {vertices[walls[wallIndex].v2].x, vertices[walls[wallIndex].v2].y}
         }
-
-        // Pre-allocate vertex array (6 vertices per wall = 2 triangles)
-        wallVertices_.setPrimitiveType(sf::PrimitiveType::Triangles);
-        wallVertices_.resize(wallCount * 6);
-
-        // Fill vertex array
-        int vertexIndex = 0;
-        const float padding = 2.f; // Visual gap between tiles
-        const sf::Color wallColor = sf::Color::Red;
-
-        for (int y = 0; y < mapHeight_; ++y) {
-            for (int x = 0; x < mapWidth_; ++x) {
-                if (grid_[y][x] != 0) {
-                    // Calculate tile position (with padding)
-                    float left = x * tileSize_;
-                    float top = y * tileSize_;
-                    float right = left + tileSize_ - padding;
-                    float bottom = top + tileSize_ - padding;
-
-                    // First triangle (top-left, top-right, bottom-left)
-                    wallVertices_[vertexIndex + 0].position = sf::Vector2f{left, top};
-                    wallVertices_[vertexIndex + 0].color = wallColor;
-                    
-                    wallVertices_[vertexIndex + 1].position = sf::Vector2f{right, top};
-                    wallVertices_[vertexIndex + 1].color = wallColor;
-                    
-                    wallVertices_[vertexIndex + 2].position = sf::Vector2f{left, bottom};
-                    wallVertices_[vertexIndex + 2].color = wallColor;
-
-                    // Second triangle (bottom-left, top-right, bottom-right)
-                    wallVertices_[vertexIndex + 3].position = sf::Vector2f{left, bottom};
-                    wallVertices_[vertexIndex + 3].color = wallColor;
-                    
-                    wallVertices_[vertexIndex + 4].position = sf::Vector2f{right, top};
-                    wallVertices_[vertexIndex + 4].color = wallColor;
-                    
-                    wallVertices_[vertexIndex + 5].position = sf::Vector2f{right, bottom};
-                    wallVertices_[vertexIndex + 5].color = wallColor;
-
-                    vertexIndex += 6;
-                }
-            }
-        }
-    }
-
-    void rebuildVertexArray() {
-        buildVertexArray();
     }
 };
