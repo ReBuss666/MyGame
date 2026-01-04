@@ -155,6 +155,7 @@ private:
     float maxSpeed_;
     float acceleration_;    
     float friction_;
+    int currentSector_ = 0;
 
     // FPS данные
     float viewAngle_;         // Угол взгляда в радианах (0 = вправо, PI/2 = вниз)
@@ -167,12 +168,6 @@ private:
         float top = bounds.position.y;
         float width = bounds.size.x;
         float height = bounds.size.y;
-
-        // Test all 4 corners
-        if (map.isWall(left + COLLISION_BUFFER, top + COLLISION_BUFFER)) return true;
-        if (map.isWall(left + width - COLLISION_BUFFER, top + COLLISION_BUFFER)) return true;
-        if (map.isWall(left + COLLISION_BUFFER, top + height - COLLISION_BUFFER)) return true;
-        if (map.isWall(left + width - COLLISION_BUFFER, top + height - COLLISION_BUFFER)) return true;
 
         return false;
     }

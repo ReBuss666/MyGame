@@ -49,6 +49,6 @@ public:
         return {
             {vertices[walls[wallIndex].v1].x, vertices[walls[wallIndex].v1].y},
             {vertices[walls[wallIndex].v2].x, vertices[walls[wallIndex].v2].y}
-        }
+        };
     }
 };
