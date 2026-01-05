@@ -71,8 +71,11 @@ public:
             wallTexture_->setRepeated(true); 
             wallTexture_->setSmooth(false);
             sectorRenderer_->setTexture(wallTexture_);
+            std::cout << "[PlayState] Wall texture loaded: " << Assets::WALL_TEXTURE 
+                      << " (" << wallTexture_->getSize().x << "x" << wallTexture_->getSize().y << ")" << std::endl;
         } else {
-            std::cerr << "WARNING: Wall texture not found, using solid colors." << std::endl;
+            std::cerr << "WARNING: Wall texture not found at: " << Assets::WALL_TEXTURE << std::endl;
+            std::cerr << "         Walls will appear white. Check the file path." << std::endl;
         }
 
         mode3D_ = true;

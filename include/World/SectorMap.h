@@ -83,27 +83,36 @@ public:
      * Used for collision detection.
      */
     bool isBlocked(sf::Vector2f from, sf::Vector2f to, float radius = 0.3f) const {
-        // Get sectors at start and end points
+        // Get sector at start point
         const Sector* startSector = findSectorAt(from);
-        const Sector* endSector = findSectorAt(to);
-
-        if (!startSector || !endSector) {
+        
+        if (!startSector) {
             return true; // Outside valid area
         }
 
-        // If in same sector, check walls
-        if (startSector == endSector) {
-            for (const auto& wall : startSector->getWalls()) {
-                if (wall.isSolid() && lineSegmentIntersectsCircle(wall, from, to, radius)) {
-                    return true;
+        // Check all walls in current sector
+        for (const auto& wall : startSector->getWalls()) {
+            // Check if destination point is too close to wall
+            sf::Vector2f closest = wall.closestPoint(to);
+            sf::Vector2f delta = to - closest;
+            float distSquared = delta.x * delta.x + delta.y * delta.y;
+            
+            if (distSquared < radius * radius) {
+                // We're too close to this wall
+                if (wall.isSolid()) {
+                    return true; // Solid wall blocks movement
                 }
+                // Portal wall - allow passage
             }
-            return false;
         }
-
-        // Different sectors - check if portal allows passage
-        // This is simplified; real implementation needs to check height differences
-        return false; // For now, allow movement between sectors
+        
+        // Check if destination is in a valid sector
+        const Sector* endSector = findSectorAt(to);
+        if (!endSector) {
+            return true; // Moving outside all sectors
+        }
+        
+        return false; // Movement is allowed
     }
 
     /**

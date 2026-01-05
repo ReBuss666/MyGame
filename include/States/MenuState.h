@@ -190,18 +190,21 @@ public:
     }
     
     void render(sf::RenderWindow& window) override {
+         // Draw logo on top of fire
         if (logoSprite_) {
             window.draw(*logoSprite_);
+        }
+        
+        // Draw fire effect 
+        if (fireEffect_) {
+            fireEffect_->render(window);
         }
 
         if (shineSprite_) {
             window.draw(*shineSprite_, sf::BlendAdd);
         }
 
-        if (fireEffect_) {
-            fireEffect_->render(window);
-        }
-
+        // Draw buttons on top
         for (auto& button : buttons_) {
             button->render(window);
         }
