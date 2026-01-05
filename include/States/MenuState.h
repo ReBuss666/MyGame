@@ -252,11 +252,11 @@ private:
         } 
         else if (buttonName == "Options") {
             std::cout << ">>> Options button clicked! <<<" << std::endl;
-            // TODO: Implement options menu
+            stateManager_->pushState("Options");
         } 
         else if (buttonName == "Exit") {
             std::cout << ">>> Exit button clicked! <<<" << std::endl;
-            stateManager_->popState();
+            stateManager_->exitGame();
         }
     }
 };

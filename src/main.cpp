@@ -1,23 +1,44 @@
 #include "../include/Utils/settings.h"
 #include "../include/Core/StateManager.h"
+#include "../include/Core/GameSettings.h"
 #include "../include/States/MenuState.h"
 #include "../include/States/PlayState_Sector.h"
 #include "../include/States/PauseState.h"
+#include "../include/States/OptionsState.h"
 #include <iostream>
 
 int main() {
-    // Create window
-    sf::RenderWindow window(sf::VideoMode({WINDOW_WIDTH, WINDOW_HEIGHT}), "Voxet");
-    window.setFramerateLimit(TARGET_FPS);
+    // Load game settings
+    auto& settings = GameSettings::getInstance();
+    settings.loadSettings();
+    
+    // Create window with settings
+    auto resolution = settings.getCurrentResolution();
+    sf::RenderWindow window;
+    
+    if (settings.isFullscreen()) {
+        window.create(sf::VideoMode({resolution.width, resolution.height}), "Voxet", sf::State::Fullscreen);
+    } else {
+        window.create(sf::VideoMode({resolution.width, resolution.height}), "Voxet", 
+                      sf::Style::Titlebar | sf::Style::Close, sf::State::Windowed);
+    }
+    
+    // Apply VSync or FPS limit
+    if (settings.isVSyncEnabled()) {
+        window.setVerticalSyncEnabled(true);
+    } else {
+        window.setFramerateLimit(settings.getFPSLimit());
+    }
     
     // Create state manager
     StateManager stateManager;
-    stateManager.setWindow(&window);  // НОВОЕ: передаем окно
+    stateManager.setWindow(&window);
     
     // Register all game states
     stateManager.registerState<MenuState>("Menu");
     stateManager.registerState<PlayState>("Play");
     stateManager.registerState<PauseState>("Pause");
+    stateManager.registerState<OptionsState>("Options");
     
     // Start with menu state
     stateManager.pushState("Menu");

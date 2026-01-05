@@ -82,26 +82,34 @@ public:
             float rayAngle = playerAngle + std::atan(cameraX * std::tan(fov / 2.0f));
             sf::Vector2f rayDir(std::cos(rayAngle), std::sin(rayAngle));
 
-            // Cast ray and find closest wall hit
+            // Cast ray and find closest wall hit (follows through portals)
             float distance = 0.0f;
             const Wall* hitWall = nullptr;
             bool hitSide = false;
+            const Sector* hitSector = nullptr;
 
-            if (castRay(*currentSector, playerPos, rayDir, distance, hitWall, hitSide)) {
+            if (castRay(*currentSector, playerPos, rayDir, distance, hitWall, hitSide, &hitSector)) {
                 // Correct fisheye effect
                 float correctedDist = distance * std::cos(rayAngle - playerAngle);
-                if (correctedDist < 0.01f) correctedDist = 0.01f;
+                if (correctedDist < 0.1f) correctedDist = 0.1f;
 
                 // Calculate wall height on screen
-                float wallHeight = (static_cast<float>(screenHeight_) / correctedDist);
+                // Scale by TILE_SIZE since map coordinates are in pixels (64 per unit)
+                float projectionDistance = (screenHeight_ / 2.0f) / std::tan(fov / 2.0f);
+                float wallHeight = (TILE_SIZE * 2.0f * projectionDistance) / correctedDist;
 
                 // Calculate texture coordinate
                 sf::Vector2f hitPoint = playerPos + rayDir * distance;
                 float wallX = calculateTextureX(*hitWall, hitPoint, hitSide);
 
-                // Calculate brightness
-                float brightness = std::max(0.2f, 1.0f - (correctedDist / renderDistance_));
+                // Calculate brightness based on distance (normalize by TILE_SIZE)
+                float normalizedDist = correctedDist / TILE_SIZE;
+                float brightness = std::max(0.3f, 1.0f - (normalizedDist / renderDistance_));
                 if (hitSide) brightness *= 0.7f; // Darken side walls
+                
+                // Apply sector light level from the sector where wall was hit
+                uint8_t sectorLight = hitSector ? hitSector->getLightLevel() : currentSector->getLightLevel();
+                brightness *= (sectorLight / 255.0f);
 
                 sf::Color color(
                     static_cast<uint8_t>(255 * brightness),
@@ -159,7 +167,9 @@ private:
     }
 
     /**
-     * @brief Cast a ray and find closest wall intersection
+     * @brief Cast a ray and find closest SOLID wall intersection
+     * 
+     * This version follows through portals to find solid walls.
      * 
      * @param sector Current sector to check
      * @param origin Ray origin (player position)
@@ -167,6 +177,8 @@ private:
      * @param[out] distance Distance to hit
      * @param[out] hitWall Pointer to wall that was hit
      * @param[out] hitSide Which side was hit (for shading)
+     * @param[out] hitSector Sector where the wall was hit
+     * @param maxDepth Maximum portal recursion depth
      * @return true if wall was hit, false otherwise
      */
     bool castRay(const Sector& sector,
@@ -174,11 +186,14 @@ private:
                  sf::Vector2f direction,
                  float& distance,
                  const Wall*& hitWall,
-                 bool& hitSide) {
+                 bool& hitSide,
+                 const Sector** hitSector = nullptr,
+                 int maxDepth = 8) {
         
-        float closestDist = renderDistance_;
+        float closestDist = renderDistance_ * TILE_SIZE;  // Convert to pixel units
         const Wall* closestWall = nullptr;
         bool closestSide = false;
+        const Sector* closestSector = &sector;
 
         // Check intersection with each wall in sector
         for (const auto& wall : sector.getWalls()) {
@@ -187,9 +202,35 @@ private:
             
             if (rayWallIntersection(origin, direction, wall, dist, side)) {
                 if (dist < closestDist && dist > 0.01f) {
-                    closestDist = dist;
-                    closestWall = &wall;
-                    closestSide = side;
+                    // Check if this is a portal
+                    if (wall.isPortal() && maxDepth > 0) {
+                        // Cast ray into neighboring sector
+                        Sector* neighbor = wall.getNeighborSector();
+                        if (neighbor) {
+                            sf::Vector2f newOrigin = origin + direction * (dist + 0.1f);
+                            float neighborDist = 0.0f;
+                            const Wall* neighborWall = nullptr;
+                            bool neighborSide = false;
+                            const Sector* neighborHitSector = nullptr;
+                            
+                            if (castRay(*neighbor, newOrigin, direction, neighborDist, 
+                                       neighborWall, neighborSide, &neighborHitSector, maxDepth - 1)) {
+                                float totalDist = dist + neighborDist;
+                                if (totalDist < closestDist) {
+                                    closestDist = totalDist;
+                                    closestWall = neighborWall;
+                                    closestSide = neighborSide;
+                                    closestSector = neighborHitSector;
+                                }
+                            }
+                        }
+                    } else {
+                        // Solid wall - this is our hit
+                        closestDist = dist;
+                        closestWall = &wall;
+                        closestSide = side;
+                        closestSector = &sector;
+                    }
                 }
             }
         }
@@ -198,6 +239,7 @@ private:
             distance = closestDist;
             hitWall = closestWall;
             hitSide = closestSide;
+            if (hitSector) *hitSector = closestSector;
             return true;
         }
 
@@ -261,7 +303,9 @@ private:
         
         sf::Vector2f toHit = hitPoint - start;
         float distAlongWall = std::sqrt(toHit.x * toHit.x + toHit.y * toHit.y);
-        float wallX = distAlongWall / wallLength;
+        
+        // Tile the texture every TILE_SIZE pixels
+        float wallX = std::fmod(distAlongWall, TILE_SIZE) / TILE_SIZE;
         
         // Mirror texture on one side to avoid backwards look
         if (hitSide) {

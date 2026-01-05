@@ -47,8 +47,10 @@ public:
             std::cerr << "ERROR: Sector map validation failed!" << std::endl;
         }
 
-        // Create player in first sector
-        player_ = std::make_unique<Player>(sf::Vector2f(2.5f * 64.f, 2.5f * 64.f)); // Center of first sector
+        // Create player in first sector (center of sector 0: 2 units in from corner)
+        // Map uses 64 pixel units, so center of 4x4 sector at (0,0) is at (2*64, 2*64) = (128, 128)
+        const float UNIT = 64.0f;
+        player_ = std::make_unique<Player>(sf::Vector2f(2.0f * UNIT, 2.0f * UNIT));
         
         // Find initial sector
         updatePlayerSector();
@@ -307,10 +309,19 @@ private:
         bool blocked = sectorMap_.isBlocked(currentPos, newPos, PLAYER_WIDTH / 2.0f);
 
         if (!blocked) {
-            // Move player
-            // TODO: Update Player class to have setPosition() method
-            // For now, we'd need to update Player's internal position directly
-            std::cout << "Movement would happen here" << std::endl;
+            // Move player to new position
+            player_->setPosition(newPos);
+        } else {
+            // Try sliding along walls (try X and Y separately)
+            sf::Vector2f slideX = sf::Vector2f(newPos.x, currentPos.y);
+            sf::Vector2f slideY = sf::Vector2f(currentPos.x, newPos.y);
+            
+            if (!sectorMap_.isBlocked(currentPos, slideX, PLAYER_WIDTH / 2.0f)) {
+                player_->setPosition(slideX);
+            } else if (!sectorMap_.isBlocked(currentPos, slideY, PLAYER_WIDTH / 2.0f)) {
+                player_->setPosition(slideY);
+            }
+            // If both blocked, don't move
         }
     }
 
