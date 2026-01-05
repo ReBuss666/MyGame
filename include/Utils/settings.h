@@ -12,7 +12,7 @@
 // WINDOW SETTINGS
 // =============================================================================
 inline constexpr int WINDOW_WIDTH = 1920;
-inline constexpr int WINDOW_HEIGHT = 1200;
+inline constexpr int WINDOW_HEIGHT = 1080;
 inline constexpr float WINDOW_CENTER_X = WINDOW_WIDTH / 2.0f;
 inline constexpr float WINDOW_CENTER_Y = WINDOW_HEIGHT / 2.0f;
 
@@ -72,9 +72,9 @@ static constexpr unsigned int INTERNAL_HEIGHT = 600;
 inline constexpr float LOGO_SPEED = 120.0f;
 inline constexpr float LOGO_OFFSET_Y = 60.0f;
 
-// Menu Layout
-inline constexpr float MENU_BUTTON_START_Y = 650.0f;
-inline constexpr float MENU_BUTTON_SPACING = 100.0f;
+// Menu Layout - adjusted for 1080p
+inline constexpr float MENU_BUTTON_START_Y = 550.0f;
+inline constexpr float MENU_BUTTON_SPACING = 80.0f;
 inline constexpr float MENU_BUTTON_WIDTH = 300.0f;
 inline constexpr float MENU_BUTTON_HEIGHT = 60.0f;
 

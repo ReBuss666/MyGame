@@ -27,8 +27,8 @@ FireEffect::FireEffect(int width, int height, int pixelSize)
 
 void FireEffect::initPalette() {
     palette_[0] = sf::Color(0, 0, 0, 0);
-    palette_[1] = sf::Color(7, 7, 7, 40);
-    palette_[2] = sf::Color(15, 15, 15, 50);
+    palette_[1] = sf::Color(7, 7, 7, 0);
+    palette_[2] = sf::Color(15, 15, 15, 20);
     palette_[3] = sf::Color(31, 15, 7, 60);
     palette_[4] = sf::Color(47, 15, 7);
     palette_[5] = sf::Color(71, 31, 7);
