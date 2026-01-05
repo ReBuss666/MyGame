@@ -1,7 +1,7 @@
 #include "../include/Utils/settings.h"
 #include "../include/Core/StateManager.h"
 #include "../include/States/MenuState.h"
-#include "../include/States/PlayState.h"
+#include "../include/States/PlayState_Sector.h"
 #include "../include/States/PauseState.h"
 #include <iostream>
 

@@ -1,11 +1,19 @@
 #pragma once
 #include <SFML/Graphics.hpp>
-#include "../World/map.h"
 #include "../Utils/settings.h"
 #include <iostream>
 #include <cmath>
 #include <algorithm>
 
+/**
+ * @brief Player class - updated for Sector Engine
+ * 
+ * Changes:
+ * - Removed dependency on old Map class
+ * - Added setPosition() method
+ * - Added updateSimple() for movement without collision detection
+ * - Collision detection will be handled by SectorMap in the future
+ */
 class Player {
 public:
     Player(sf::Vector2f position)
@@ -27,7 +35,15 @@ public:
         std::cout << "[Player] Created at (" << position.x << ", " << position.y << ")" << std::endl;
     }
 
-    void update(float deltaTime, const Map& gameMap, bool mode3D = false) {
+    /**
+     * @brief Simple update without collision detection
+     * 
+     * Use this for temporary testing until proper sector collision is implemented.
+     * 
+     * @param deltaTime Time since last frame
+     * @param mode3D If true, movement is relative to view direction
+     */
+    void updateSimple(float deltaTime, bool mode3D = false) {
         // 1. Input handling
         sf::Vector2f inputDir{0.f, 0.f};
 
@@ -73,32 +89,8 @@ public:
             velocity_ = (velocity_ / currentSpeed) * maxSpeed_;
         }
 
-        // 5. Collision detection and movement (X and Y axes separately)
-        sf::Vector2f oldPos = shape_.getPosition();
-        sf::Vector2f nextPos = oldPos + (velocity_ * deltaTime);
-
-        // Test X movement
-        sf::FloatRect nextBoundsX = shape_.getGlobalBounds();
-        nextBoundsX.position.x = nextPos.x - shape_.getOrigin().x;
-        nextBoundsX.position.y = oldPos.y - shape_.getOrigin().y;
-
-        if (!checkCollision(nextBoundsX, gameMap)) {
-            shape_.move({velocity_.x * deltaTime, 0.f});
-        } else {
-            velocity_.x = 0.f; // Stop horizontal movement on collision
-        }
-
-        // Test Y movement
-        sf::Vector2f currentPosAfterX = shape_.getPosition();
-        sf::FloatRect nextBoundsY = shape_.getGlobalBounds();
-        nextBoundsY.position.x = currentPosAfterX.x - shape_.getOrigin().x;
-        nextBoundsY.position.y = nextPos.y - shape_.getOrigin().y;
-
-        if (!checkCollision(nextBoundsY, gameMap)) {
-            shape_.move({0.f, velocity_.y * deltaTime});
-        } else {
-            velocity_.y = 0.f; // Stop vertical movement on collision
-        }
+        // 5. Move player (no collision check)
+        shape_.move({velocity_.x * deltaTime, velocity_.y * deltaTime});
     }
 
     void handleMouseLook(float mouseX) {
@@ -144,6 +136,10 @@ public:
     float getViewAngle() const { return viewAngle_; }
     
     // Setters
+    void setPosition(sf::Vector2f pos) { 
+        shape_.setPosition(pos); 
+    }
+    
     void setViewAngle(float angle) { viewAngle_ = angle; }
     void setMouseSensitivity(float sensitivity) { mouseSensitivity_ = sensitivity; }
     void resetMouseTracking() { firstMouse_ = true; }
@@ -160,47 +156,4 @@ private:
     float mouseSensitivity_;  // Mouse sensitivity
     float lastMouseX_;        // Last mouse X position
     bool firstMouse_;         // First mouse movement flag
-
-    /**
-     * @brief Check collision with map walls
-     * 
-     * Tests multiple points around the player's bounding box
-     * to ensure accurate collision detection.
-     */
-    bool checkCollision(const sf::FloatRect& bounds, const Map& map) {
-        // Get bounds edges
-        float left = bounds.position.x;
-        float top = bounds.position.y;
-        float right = left + bounds.size.x;
-        float bottom = top + bounds.size.y;
-        
-        // Add small buffer to prevent getting stuck
-        const float buffer = COLLISION_BUFFER;
-        left += buffer;
-        top += buffer;
-        right -= buffer;
-        bottom -= buffer;
-
-        // Check corners and midpoints (9 points total for thorough detection)
-        const sf::Vector2f testPoints[] = {
-            {left, top},           // Top-left
-            {right, top},          // Top-right
-            {left, bottom},        // Bottom-left
-            {right, bottom},       // Bottom-right
-            {(left + right) / 2.f, top},     // Top-middle
-            {(left + right) / 2.f, bottom},  // Bottom-middle
-            {left, (top + bottom) / 2.f},    // Left-middle
-            {right, (top + bottom) / 2.f},   // Right-middle
-            {(left + right) / 2.f, (top + bottom) / 2.f}  // Center
-        };
-
-        // Check if any test point collides with a wall
-        for (const auto& point : testPoints) {
-            if (map.isWall(point.x, point.y)) {
-                return true; // Collision detected
-            }
-        }
-
-        return false; // No collision
-    }
 };
