@@ -10,7 +10,10 @@ SectorRenderer::SectorRenderer(int screenWidth, int screenHeight)
     , wallTexture_(nullptr)
 {
     columnVertices_.setPrimitiveType(sf::PrimitiveType::Triangles);
-    columnVertices_.resize(screenWidth_ * 6);
+    columnVertices_.resize(screenWidth_ * 6);  // Wall vertices only
+    
+    floorCeilingVertices_.setPrimitiveType(sf::PrimitiveType::Triangles);
+    floorCeilingVertices_.resize(screenWidth_ * 12);  // 6 floor + 6 ceiling per column
     
     std::cout << "[SectorRenderer] Created (" << screenWidth_ << "x" << screenHeight_ << ")" << std::endl;
 }
@@ -28,15 +31,23 @@ void SectorRenderer::render(sf::RenderTarget& target,
                            sf::Vector2f playerPos,
                            float playerAngle,
                            const Sector* currentSector,
-                           float fov) {
+                           float fov,
+                           float playerHeight) {
     
-    // Draw background (sky and floor)
+    // Draw sky background only (floor will be drawn per-column)
     drawBackground(target, currentSector);
     
     if (!currentSector) {
         std::cerr << "[SectorRenderer] WARNING: No current sector to render!" << std::endl;
         return;
     }
+
+    // Player's eye height in world units (floor height + eye offset)
+    float playerEyeZ = currentSector->getFloorHeight() + playerHeight;
+    
+    // Projection plane distance
+    float projDist = (screenHeight_ / 2.0f) / std::tan(fov / 2.0f);
+    float screenCenterY = screenHeight_ / 2.0f;
 
     // Render each screen column
     for (int x = 0; x < screenWidth_; ++x) {
@@ -56,9 +67,17 @@ void SectorRenderer::render(sf::RenderTarget& target,
             float correctedDist = distance * std::cos(rayAngle - playerAngle);
             if (correctedDist < 0.1f) correctedDist = 0.1f;
 
-            // Calculate wall height on screen
-            float projectionDistance = (screenHeight_ / 2.0f) / std::tan(fov / 2.0f);
-            float wallHeight = (TILE_SIZE * 2.0f * projectionDistance) / correctedDist;
+            // Get the sector heights where the wall was hit
+            float sectorFloor = hitSector ? hitSector->getFloorHeight() : 0.0f;
+            float sectorCeiling = hitSector ? hitSector->getCeilingHeight() : 3.0f;
+            
+            // Calculate wall top and bottom relative to player eye
+            float floorDiff = playerEyeZ - sectorFloor;      // Positive = floor below eye
+            float ceilingDiff = playerEyeZ - sectorCeiling;  // Negative = ceiling above eye
+            
+            // Project to screen coordinates
+            float wallBottomY = screenCenterY + (floorDiff * TILE_SIZE * projDist) / correctedDist;
+            float wallTopY = screenCenterY + (ceilingDiff * TILE_SIZE * projDist) / correctedDist;
 
             // Calculate texture coordinate
             sf::Vector2f hitPoint = playerPos + rayDir * distance;
@@ -73,19 +92,27 @@ void SectorRenderer::render(sf::RenderTarget& target,
             uint8_t sectorLight = hitSector ? hitSector->getLightLevel() : currentSector->getLightLevel();
             brightness *= (sectorLight / 255.0f);
 
-            sf::Color color(
+            sf::Color wallColor(
                 static_cast<uint8_t>(255 * brightness),
                 static_cast<uint8_t>(255 * brightness),
                 static_cast<uint8_t>(255 * brightness)
             );
 
-            drawTexturedColumn(x, wallHeight, wallX, color, currentSector);
+            // Calculate texture Y coordinates based on wall height
+            float wallHeightWorld = sectorCeiling - sectorFloor;
+            float texYStart = 0.0f;
+            float texYEnd = wallHeightWorld;
+
+            // Draw wall column
+            drawTexturedColumn(x, wallTopY, wallBottomY, wallX, wallColor, texYStart, texYEnd);
+            
         } else {
-            drawTexturedColumn(x, 0, 0, sf::Color::Transparent, currentSector);
+            // No wall hit - clear this column
+            drawTexturedColumn(x, 0, 0, 0, sf::Color::Transparent, 0, 0);
         }
     }
 
-    // Draw all columns in one call
+    // Draw walls on top of background (with texture)
     sf::RenderStates states;
     if (wallTexture_) states.texture = wallTexture_;
     target.draw(columnVertices_, states);
@@ -98,35 +125,22 @@ void SectorRenderer::drawBackground(sf::RenderTarget& target, const Sector* sect
     sky.setFillColor(sf::Color(SKY_R, SKY_G, SKY_B));
     target.draw(sky);
 
-    // Floor (lower half)
+    // Floor (lower half) - simple gray
     sf::RectangleShape floor;
     floor.setSize({static_cast<float>(screenWidth_), static_cast<float>(screenHeight_ / 2)});
     floor.setPosition({0.f, static_cast<float>(screenHeight_ / 2)});
-    
-    if (sector) {
-        uint8_t light = sector->getLightLevel();
-        floor.setFillColor(sf::Color(FLOOR_R * light / 255, 
-                                     FLOOR_G * light / 255, 
-                                     FLOOR_B * light / 255));
-    } else {
-        floor.setFillColor(sf::Color(FLOOR_R, FLOOR_G, FLOOR_B));
-    }
-    
+    floor.setFillColor(sf::Color(FLOOR_R, FLOOR_G, FLOOR_B));
     target.draw(floor);
 }
 
-void SectorRenderer::drawTexturedColumn(int x, float wallHeight, float wallX, 
-                                        sf::Color color, const Sector* sector) {
+void SectorRenderer::drawTexturedColumn(int x, float wallTopY, float wallBottomY, float wallX, 
+                                        sf::Color color, float texYStart, float texYEnd) {
     
-    float centerY = screenHeight_ / 2.0f;
-    float topY = centerY - wallHeight / 2.0f;
-    float bottomY = centerY + wallHeight / 2.0f;
-
     // Clip to screen
-    float drawStart = std::max(0.0f, topY);
-    float drawEnd = std::min(static_cast<float>(screenHeight_), bottomY);
+    float drawStart = std::max(0.0f, wallTopY);
+    float drawEnd = std::min(static_cast<float>(screenHeight_), wallBottomY);
 
-    if (drawStart >= drawEnd) {
+    if (drawStart >= drawEnd || wallTopY >= wallBottomY) {
         int idx = x * 6;
         for(int i = 0; i < 6; ++i) {
             columnVertices_[idx + i] = sf::Vertex(sf::Vector2f(0, 0), sf::Color::Transparent);
@@ -141,13 +155,19 @@ void SectorRenderer::drawTexturedColumn(int x, float wallHeight, float wallX,
     // Calculate texture X coordinate - sample from center of texel to avoid bleeding
     float texX = wallX * textureWidth;
 
-    // Calculate texture Y range
-    float d = (drawStart - centerY + wallHeight / 2.0f);
-    float texY_start = (d * textureHeight) / wallHeight;
-    float heightToDraw = drawEnd - drawStart;
-    float texY_end = ((d + heightToDraw) * textureHeight) / wallHeight;
+    // Calculate texture Y based on wall portion visible
+    float wallScreenHeight = wallBottomY - wallTopY;
+    float wallWorldHeight = texYEnd - texYStart;
+    
+    // Texture Y at top of visible portion
+    float topClipRatio = (drawStart - wallTopY) / wallScreenHeight;
+    float bottomClipRatio = (drawEnd - wallTopY) / wallScreenHeight;
+    
+    float texY_start = (texYStart + topClipRatio * wallWorldHeight) * textureHeight / 3.0f;  // Divide by standard wall height
+    float texY_end = (texYStart + bottomClipRatio * wallWorldHeight) * textureHeight / 3.0f;
 
-    // Fill vertices - each column is 1 pixel wide, samples single texture column
+    // Fill vertices - each column is 1 pixel wide
+    // Wall uses 6 vertices per column
     float left = static_cast<float>(x);
     float right = static_cast<float>(x + 1);
     int idx = x * 6;
@@ -160,6 +180,34 @@ void SectorRenderer::drawTexturedColumn(int x, float wallHeight, float wallX,
     columnVertices_[idx + 3] = sf::Vertex({right, drawStart}, color, {texX, texY_start});
     columnVertices_[idx + 4] = sf::Vertex({left, drawEnd}, color, {texX, texY_end});
     columnVertices_[idx + 5] = sf::Vertex({right, drawEnd}, color, {texX, texY_end});
+}
+
+void SectorRenderer::drawFloorCeilingColumn(int x, float topY, float bottomY, sf::Color color, bool isFloor) {
+    // Clip to screen
+    float drawStart = std::max(0.0f, topY);
+    float drawEnd = std::min(static_cast<float>(screenHeight_), bottomY);
+    
+    float left = static_cast<float>(x);
+    float right = static_cast<float>(x + 1);
+    
+    // Floor uses vertices 0-5 per column, ceiling uses 6-11 per column in floorCeilingVertices_
+    int idx = x * 12 + (isFloor ? 0 : 6);
+    
+    if (drawStart >= drawEnd) {
+        for(int i = 0; i < 6; ++i) {
+            floorCeilingVertices_[idx + i] = sf::Vertex(sf::Vector2f(0, 0), sf::Color::Transparent);
+        }
+        return;
+    }
+    
+    // Flat colored quad (no texture)
+    floorCeilingVertices_[idx + 0] = sf::Vertex({left, drawStart}, color);
+    floorCeilingVertices_[idx + 1] = sf::Vertex({left, drawEnd}, color);
+    floorCeilingVertices_[idx + 2] = sf::Vertex({right, drawStart}, color);
+    
+    floorCeilingVertices_[idx + 3] = sf::Vertex({right, drawStart}, color);
+    floorCeilingVertices_[idx + 4] = sf::Vertex({left, drawEnd}, color);
+    floorCeilingVertices_[idx + 5] = sf::Vertex({right, drawEnd}, color);
 }
 
 bool SectorRenderer::castRay(const Sector& sector,

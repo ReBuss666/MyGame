@@ -25,25 +25,29 @@ public:
 
     /**
      * @brief Main render method
+     * @param playerHeight Player's eye height above the floor (typically 0.5 units)
      */
     void render(sf::RenderTarget& target,
                 const SectorMap& map,
                 sf::Vector2f playerPos,
                 float playerAngle,
                 const Sector* currentSector,
-                float fov = FOV_RADIANS);
+                float fov = FOV_RADIANS,
+                float playerHeight = 0.5f);
 
 private:
     int screenWidth_;
     int screenHeight_;
     float renderDistance_;
     const sf::Texture* wallTexture_;
-    sf::VertexArray columnVertices_;
+    sf::VertexArray columnVertices_;        // For textured walls
+    sf::VertexArray floorCeilingVertices_;  // For flat-colored floor/ceiling
 
     // Rendering helpers
     void drawBackground(sf::RenderTarget& target, const Sector* sector);
-    void drawTexturedColumn(int x, float wallHeight, float wallX, 
-                           sf::Color color, const Sector* sector);
+    void drawTexturedColumn(int x, float wallTopY, float wallBottomY, float wallX, 
+                           sf::Color color, float texYStart, float texYEnd);
+    void drawFloorCeilingColumn(int x, float topY, float bottomY, sf::Color color, bool isFloor);
 
     // Ray casting
     bool castRay(const Sector& sector,

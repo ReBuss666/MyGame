@@ -184,12 +184,14 @@ public:
             renderTexture_.clear(sf::Color::Black);
             
             if (sectorRenderer_ && player_ && currentSector_) {
+                // Player eye height = 0.5 units above floor
                 sectorRenderer_->render(renderTexture_, 
                                        sectorMap_,
                                        player_->getPosition(), 
                                        player_->getViewAngle(),
                                        currentSector_,
-                                       FOV_RADIANS);
+                                       FOV_RADIANS,
+                                       PLAYER_EYE_HEIGHT);
             } else if (!currentSector_) {
                 // Player outside sectors - show warning
                 std::cerr << "[PlayState] WARNING: Player not in any sector!" << std::endl;

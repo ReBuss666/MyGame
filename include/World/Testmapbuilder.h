@@ -26,23 +26,23 @@ public:
      * 
      *    +--------+--------+--------+
      *    |        |        |        |
-     *    |   0    |   1    |   2    |   <- Main corridor
+     *    |   0    |   1    |   2    |   <- Main corridor (stairs going up)
      *    | START  | Step   | Step   |
      *    +---++---+---++---+---++---+
      *        ||       ||       ||
      *    +---++---+---++---+---++---+
      *    |        |        |        |
      *    |   3    |   4    |   5    |   <- South rooms
-     *    |        | PILLAR |        |
+     *    |  PIT   | GROUND | RAISED |
      *    +--------+--------+--------+
      * 
-     * Sector heights:
-     * - 0: Ground (0.0)
-     * - 1: Step up (0.3)
-     * - 2: Step up (0.6)
-     * - 3: Lowered (-0.3)
-     * - 4: Ground (0.0) with pillar in center
-     * - 5: Raised (0.5)
+     * Sector heights (floor / ceiling):
+     * - 0: Ground level (0.0 / 3.0)
+     * - 1: Step up (0.4 / 3.0)
+     * - 2: Higher step (0.8 / 3.0)
+     * - 3: Lowered pit (-0.5 / 2.5)
+     * - 4: Ground (0.0 / 3.5)
+     * - 5: Raised platform (0.6 / 3.0)
      */
     static SectorMap buildSimpleStepMap() {
         SectorMap map;
@@ -56,7 +56,7 @@ public:
         Sector sector0(0, 0.0f, 3.0f);
         sector0.setFloorTexture("floor_stone.png");
         sector0.setCeilingTexture("ceiling_metal.png");
-        sector0.setLightLevel(220);
+        sector0.setLightLevel(255);  // Bright start area
 
         // Walls: North, East (portal), South (portal), West
         sector0.addWall(Wall(sf::Vector2f(0*U, 0*U), sf::Vector2f(4*U, 0*U)));   // North
@@ -69,12 +69,12 @@ public:
         map.addSector(sector0);
 
         // ================================================================
-        // SECTOR 1 - Middle corridor (4x4 units, raised floor)
+        // SECTOR 1 - Middle corridor (4x4 units, STEP UP)
         // ================================================================
-        Sector sector1(1, 0.3f, 3.0f);  // Slightly raised
+        Sector sector1(1, 0.4f, 3.0f);  // Floor raised by 0.4 units
         sector1.setFloorTexture("floor_tile.png");
         sector1.setCeilingTexture("ceiling_metal.png");
-        sector1.setLightLevel(200);
+        sector1.setLightLevel(220);
 
         sector1.addWall(Wall(sf::Vector2f(4*U, 0*U), sf::Vector2f(8*U, 0*U)));   // North
         sector1.addWall(Wall(sf::Vector2f(8*U, 0*U), sf::Vector2f(8*U, 4*U)));   // East -> portal to 2
@@ -86,12 +86,12 @@ public:
         map.addSector(sector1);
 
         // ================================================================
-        // SECTOR 2 - East corridor (4x4 units, more raised)
+        // SECTOR 2 - East corridor (4x4 units, HIGHER STEP)
         // ================================================================
-        Sector sector2(2, 0.6f, 3.0f);  // Higher floor
+        Sector sector2(2, 0.8f, 3.0f);  // Floor raised by 0.8 units
         sector2.setFloorTexture("floor_wood.png");
         sector2.setCeilingTexture("ceiling_wood.png");
-        sector2.setLightLevel(180);
+        sector2.setLightLevel(200);
 
         sector2.addWall(Wall(sf::Vector2f(8*U, 0*U), sf::Vector2f(12*U, 0*U)));  // North
         sector2.addWall(Wall(sf::Vector2f(12*U, 0*U), sf::Vector2f(12*U, 4*U))); // East (solid)
@@ -103,12 +103,12 @@ public:
         map.addSector(sector2);
 
         // ================================================================
-        // SECTOR 3 - South-West room (lowered, darker)
+        // SECTOR 3 - South-West room (LOWERED PIT, darker)
         // ================================================================
-        Sector sector3(3, -0.3f, 2.5f);  // Lowered floor, lower ceiling
+        Sector sector3(3, -0.5f, 2.5f);  // Floor lowered, ceiling also lower
         sector3.setFloorTexture("floor_dirt.png");
         sector3.setCeilingTexture("ceiling_rock.png");
-        sector3.setLightLevel(140);  // Darker
+        sector3.setLightLevel(120);  // Dark pit
 
         sector3.addWall(Wall(sf::Vector2f(0*U, 4*U), sf::Vector2f(1.5f*U, 4*U)));// North-West
         sector3.addWall(Wall(sf::Vector2f(1.5f*U, 4*U), sf::Vector2f(2.5f*U, 4*U))); // North portal -> 0
@@ -120,12 +120,12 @@ public:
         map.addSector(sector3);
 
         // ================================================================
-        // SECTOR 4 - Central hall (larger room with pillar area)
+        // SECTOR 4 - Central hall (ground level, tall ceiling)
         // ================================================================
-        Sector sector4(4, 0.0f, 3.5f);  // Taller ceiling
+        Sector sector4(4, 0.0f, 4.0f);  // Normal floor, tall ceiling
         sector4.setFloorTexture("floor_marble.png");
         sector4.setCeilingTexture("ceiling_ornate.png");
-        sector4.setLightLevel(255);  // Bright
+        sector4.setLightLevel(255);  // Bright hall
 
         sector4.addWall(Wall(sf::Vector2f(4*U, 4*U), sf::Vector2f(5.5f*U, 4*U)));// North-West
         sector4.addWall(Wall(sf::Vector2f(5.5f*U, 4*U), sf::Vector2f(6.5f*U, 4*U))); // North portal -> 1
@@ -137,12 +137,12 @@ public:
         map.addSector(sector4);
 
         // ================================================================
-        // SECTOR 5 - South-East room (raised platform)
+        // SECTOR 5 - South-East room (RAISED platform)
         // ================================================================
-        Sector sector5(5, 0.5f, 3.0f);  // Raised floor
+        Sector sector5(5, 0.6f, 3.0f);  // Raised floor
         sector5.setFloorTexture("floor_metal.png");
         sector5.setCeilingTexture("ceiling_tech.png");
-        sector5.setLightLevel(190);
+        sector5.setLightLevel(180);
 
         sector5.addWall(Wall(sf::Vector2f(8*U, 4*U), sf::Vector2f(9.5f*U, 4*U)));// North-West
         sector5.addWall(Wall(sf::Vector2f(9.5f*U, 4*U), sf::Vector2f(10.5f*U, 4*U))); // North portal -> 2

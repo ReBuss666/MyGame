@@ -82,8 +82,8 @@ inline constexpr float MENU_BUTTON_HEIGHT = 60.0f;
 // PLAYER SETTINGS
 // =============================================================================
 // Movement
-inline constexpr float PLAYER_SPEED = 600.0f;
-inline constexpr float PLAYER_ACCELERATION = 2000.0f;
+inline constexpr float PLAYER_SPEED = 300.0f;
+inline constexpr float PLAYER_ACCELERATION = 1000.0f;
 inline constexpr float PLAYER_FRICTION = 10.0f;
 
 // Size
@@ -95,6 +95,10 @@ inline constexpr float COLLISION_BUFFER = 1.0f;
 
 // View (3D-Mode)
 inline constexpr float PLAYER_VIEW_HEIGHT = 32.0f;
+inline constexpr float PLAYER_EYE_HEIGHT = 0.5f;  // Player eye height in world units (above floor)
+
+// Maximum step height player can climb (in world units)
+inline constexpr float MAX_STEP_HEIGHT = 0.5f;
 
 // =============================================================================
 // MAP SETTINGS
