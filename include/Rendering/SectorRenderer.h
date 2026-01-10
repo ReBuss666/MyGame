@@ -48,6 +48,10 @@ private:
     void drawTexturedColumn(int x, float wallTopY, float wallBottomY, float wallX, 
                            sf::Color color, float texYStart, float texYEnd);
     void drawFloorCeilingColumn(int x, float topY, float bottomY, sf::Color color, bool isFloor);
+    
+    // New portal-aware wall segment drawing
+    void drawWallSegment(size_t& vertexIndex, int x, float top, float bottom, 
+                        float wallX, sf::Color color, float wallHeight);
 
     // Ray casting
     bool castRay(const Sector& sector,
