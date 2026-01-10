@@ -62,8 +62,8 @@ inline constexpr int FLASH_DURATION = 180;
 // =============================================================================
 // PLAYSTATE RESOLUTION
 // =============================================================================
-static constexpr unsigned int INTERNAL_WIDTH = 960;
-static constexpr unsigned int INTERNAL_HEIGHT = 600;
+static constexpr unsigned int INTERNAL_WIDTH = 480;
+static constexpr unsigned int INTERNAL_HEIGHT = 300;
 
 // =============================================================================
 // MENU/UI SETTINGS

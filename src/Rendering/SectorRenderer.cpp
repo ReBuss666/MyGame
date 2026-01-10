@@ -62,16 +62,6 @@ void SectorRenderer::render(sf::RenderTarget& target,
         float cosCorrection = std::cos(rayAngle - playerAngle);
         sf::Vector2f rayDir(std::cos(rayAngle), std::sin(rayAngle));
 
-        // ================================================================
-        // DOOM-STYLE PORTAL RENDERING
-        // ================================================================
-        // Для каждого столбца ведём "окно видимости" (clipTop, clipBottom)
-        // Когда проходим через портал:
-        // 1. Рисуем upper wall если потолок соседа ниже
-        // 2. Рисуем lower wall если пол соседа выше (ступенька!)
-        // 3. Сужаем окно и продолжаем в соседний сектор
-        // ================================================================
-
         float clipTop = 0.0f;
         float clipBottom = static_cast<float>(screenHeight_);
         
@@ -113,6 +103,14 @@ void SectorRenderer::render(sf::RenderTarget& target,
             float currentFloorY = screenCenterY - (currentFloor - playerEyeZ) * projDist * WORLD_SCALE / correctedDist;
             float currentCeilingY = screenCenterY - (currentCeiling - playerEyeZ) * projDist * WORLD_SCALE / correctedDist;
 
+            // screenScaleFactor для текстурных координат (используем ЭКРАННУЮ высоту стены)
+            float wallScreenHeight = currentFloorY - currentCeilingY;
+            if (wallScreenHeight < 0.1f) wallScreenHeight = 0.1f;
+
+            float textureHeight = wallTexture_ ? static_cast<float>(wallTexture_->getSize().y) : 64.f;
+            float zoomfactor = 2.f;
+            float screenScaleFactor = (textureHeight * zoomfactor) / wallScreenHeight;
+
             // Текстурные координаты
             sf::Vector2f hitPoint = rayOrigin + rayDir * closestDist;
             float wallX = calculateTextureX(*closestWall, hitPoint, closestSide);
@@ -139,7 +137,8 @@ void SectorRenderer::render(sf::RenderTarget& target,
                     drawWallSegment(vertexIndex, x, 
                                    std::max(clipTop, currentCeilingY),
                                    std::min(clipBottom, currentFloorY),
-                                   wallX, wallColor, currentCeiling - currentFloor);
+                                   currentCeilingY, screenScaleFactor,
+                                   wallX, wallColor);
                     break;
                 }
 
@@ -156,8 +155,8 @@ void SectorRenderer::render(sf::RenderTarget& target,
                     float upperBottom = std::min(clipBottom, neighborCeilingY);
                     
                     if (upperTop < upperBottom) {
-                        float upperHeight = currentCeiling - neighborCeiling;
-                        drawWallSegment(vertexIndex, x, upperTop, upperBottom, wallX, wallColor, upperHeight);
+                        drawWallSegment(vertexIndex, x, upperTop, upperBottom, 
+                                       currentCeilingY, screenScaleFactor, wallX, wallColor);
                     }
                 }
 
@@ -167,14 +166,14 @@ void SectorRenderer::render(sf::RenderTarget& target,
                     float lowerBottom = std::min(clipBottom, currentFloorY);
                     
                     if (lowerTop < lowerBottom) {
-                        float lowerHeight = neighborFloor - currentFloor;
                         // Немного другой цвет для ступеньки
                         sf::Color stepColor(
                             static_cast<uint8_t>(200 * brightness),
                             static_cast<uint8_t>(180 * brightness),
                             static_cast<uint8_t>(150 * brightness)
                         );
-                        drawWallSegment(vertexIndex, x, lowerTop, lowerBottom, wallX, stepColor, lowerHeight);
+                        drawWallSegment(vertexIndex, x, lowerTop, lowerBottom, 
+                                       currentCeilingY, screenScaleFactor, wallX, stepColor);
                     }
                 }
 
@@ -201,8 +200,8 @@ void SectorRenderer::render(sf::RenderTarget& target,
                 float wallBottom = std::min(clipBottom, currentFloorY);
                 
                 if (wallTop < wallBottom) {
-                    float wallHeight = currentCeiling - currentFloor;
-                    drawWallSegment(vertexIndex, x, wallTop, wallBottom, wallX, wallColor, wallHeight);
+                    drawWallSegment(vertexIndex, x, wallTop, wallBottom, 
+                                   currentCeilingY, screenScaleFactor, wallX, wallColor);
                 }
                 break;  // Твёрдая стена - луч остановился
             }
@@ -221,21 +220,25 @@ void SectorRenderer::render(sf::RenderTarget& target,
     columnVertices_.resize(screenWidth_ * 6 * 10);
 }
 
-void SectorRenderer::drawWallSegment(size_t& vertexIndex, int x, float top, float bottom, 
-                                     float wallX, sf::Color color, float wallHeight) {
+void SectorRenderer::drawWallSegment(size_t& vertexIndex, int x,
+                                     float top, float bottom, 
+                                     float anchorTopY, float screenScaleFactor,
+                                     float wallX, sf::Color color) {
     if (top >= bottom) return;
+    if (vertexIndex + 6 > columnVertices_.getVertexCount()) return;
     
     float textureWidth = wallTexture_ ? static_cast<float>(wallTexture_->getSize().x) : 64.f;
     float textureHeight = wallTexture_ ? static_cast<float>(wallTexture_->getSize().y) : 64.f;
     
     float texX = wallX * textureWidth;
     
-    // Текстура по Y пропорционально высоте стены
-    float texYStart = 0.0f;
-    float texYEnd = wallHeight * textureHeight / 3.0f;  // 3.0 = стандартная высота стены
-    
+    // texture маштабируется по высоте стены
+    float texYStart = (top - anchorTopY) * screenScaleFactor;
+    float texYEnd = (bottom - anchorTopY) * screenScaleFactor;
+
+    // заполняем вершины
     float left = static_cast<float>(x);
-    float right = static_cast<float>(x + 1);
+    float right = left + 1.f;
 
     // Проверяем границы буфера
     if (vertexIndex + 6 > columnVertices_.getVertexCount()) {

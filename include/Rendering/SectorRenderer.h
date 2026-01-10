@@ -51,7 +51,8 @@ private:
     
     // New portal-aware wall segment drawing
     void drawWallSegment(size_t& vertexIndex, int x, float top, float bottom, 
-                        float wallX, sf::Color color, float wallHeight);
+                        float anchorTopY, float screenScaleFactor,
+                        float wallX, sf::Color color);
 
     // Ray casting
     bool castRay(const Sector& sector,
