@@ -1,6 +1,7 @@
 #pragma once
 #include "Sector.h"
 #include "Wall.h"
+#include "../Utils/settings.h"
 #include <SFML/Graphics.hpp>
 #include <vector>
 #include <memory>
@@ -82,7 +83,7 @@ public:
      * Returns true if blocked, false if clear.
      * Used for collision detection.
      */
-    bool isBlocked(sf::Vector2f from, sf::Vector2f to, float radius = 0.3f) const {
+    bool isBlocked(sf::Vector2f from, sf::Vector2f to, float radius = 0.3f, bool isJumping = false) const {
         // Get sector at start point
         const Sector* startSector = findSectorAt(from);
         
@@ -102,7 +103,17 @@ public:
                 if (wall.isSolid()) {
                     return true; // Solid wall blocks movement
                 }
-                // Portal wall - allow passage
+                // Portal wall - check step height
+                if (wall.isPortal()) {
+                    Sector* neighbor = wall.getNeighborSector();
+                    if (neighbor) {
+                        float heightDiff = neighbor->getFloorHeight() - startSector->getFloorHeight();
+                        // Block if step is too high and player is not jumping
+                        if (heightDiff > MAX_STEP_HEIGHT && !isJumping) {
+                            return true; // Step too high - need to jump
+                        }
+                    }
+                }
             }
         }
         
@@ -110,6 +121,14 @@ public:
         const Sector* endSector = findSectorAt(to);
         if (!endSector) {
             return true; // Moving outside all sectors
+        }
+        
+        // Also check step height when crossing into new sector
+        if (endSector != startSector) {
+            float heightDiff = endSector->getFloorHeight() - startSector->getFloorHeight();
+            if (heightDiff > MAX_STEP_HEIGHT && !isJumping) {
+                return true; // Step too high - need to jump
+            }
         }
         
         return false; // Movement is allowed

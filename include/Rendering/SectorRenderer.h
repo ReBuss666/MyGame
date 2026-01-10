@@ -26,6 +26,7 @@ public:
     /**
      * @brief Main render method
      * @param playerHeight Player's eye height above the floor (typically 0.5 units)
+     * @param pitch Vertical look angle (-1 to 1, affects horizon line)
      */
     void render(sf::RenderTarget& target,
                 const SectorMap& map,
@@ -33,12 +34,14 @@ public:
                 float playerAngle,
                 const Sector* currentSector,
                 float fov = FOV_RADIANS,
-                float playerHeight = 0.5f);
+                float playerHeight = 0.5f,
+                float pitch = 0.0f);
 
 private:
     int screenWidth_;
     int screenHeight_;
     float renderDistance_;
+    float currentPitch_;                    // Current pitch for background rendering
     const sf::Texture* wallTexture_;
     sf::VertexArray columnVertices_;        // For textured walls
     sf::VertexArray floorCeilingVertices_;  // For flat-colored floor/ceiling

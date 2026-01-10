@@ -46,7 +46,12 @@ inline constexpr unsigned char FLOOR_G = 50;
 inline constexpr unsigned char FLOOR_B = 50;
 
 // Mouse sensitivity (3D Mode)
-inline constexpr float MOUSE_SENSITIVITY = 0.00034f;
+inline constexpr float MOUSE_SENSITIVITY = 0.00040f;
+inline constexpr float MOUSE_SENSITIVITY_Y = 0.00040f;  // Вертикальная чувствительность
+
+// Pitch limits (ограничения вертикального обзора)
+inline constexpr float PITCH_MAX = 0.9f;   // Максимум вверх (~50 градусов)
+inline constexpr float PITCH_MIN = -0.9f;  // Максимум вниз (~50 градусов)
 
 //Keyboard rotation speed (3D Mode)
 inline constexpr float KEYBOARD_ROTATION_SPEED = 2.5f; // rad per sec
@@ -97,8 +102,31 @@ inline constexpr float COLLISION_BUFFER = 1.0f;
 inline constexpr float PLAYER_VIEW_HEIGHT = 32.0f;
 inline constexpr float PLAYER_EYE_HEIGHT = 0.5f;  // Player eye height in world units (above floor)
 
-// Maximum step height player can climb (in world units)
-inline constexpr float MAX_STEP_HEIGHT = 0.5f;
+// Maximum step height player can climb without jumping (in world units)
+inline constexpr float MAX_STEP_HEIGHT = 0.4f;
+
+// Sprint (бег)
+inline constexpr float PLAYER_SPRINT_MULTIPLIER = 1.8f;  // Скорость бега = PLAYER_SPEED * 1.8
+
+// Jump (прыжок)
+inline constexpr float PLAYER_JUMP_VELOCITY = 4.0f;      // Начальная скорость прыжка (world units/sec)
+inline constexpr float PLAYER_GRAVITY = 12.0f;           // Гравитация (world units/sec²)
+inline constexpr float PLAYER_MAX_FALL_SPEED = 10.0f;    // Максимальная скорость падения
+
+// Crouch (присед)
+inline constexpr float PLAYER_CROUCH_HEIGHT = 0.25f;     // Высота глаз в приседе
+inline constexpr float PLAYER_STAND_HEIGHT = 0.5f;       // Высота глаз стоя
+inline constexpr float PLAYER_CROUCH_SPEED_MULT = 0.5f;  // Скорость в приседе = 50%
+inline constexpr float PLAYER_CROUCH_TRANSITION = 2.0f;  // Скорость перехода присед/встать (медленнее)
+
+// Head bobbing (покачивание камеры при ходьбе) - Doom style
+inline constexpr float BOB_FREQUENCY_WALK = 3.0f;        // Частота покачивания при ходьбе (Hz) - медленнее!
+inline constexpr float BOB_FREQUENCY_SPRINT = 2.5f;      // Частота покачивания при беге (Hz)
+inline constexpr float BOB_FREQUENCY_CROUCH = 1.5f;      // Частота покачивания в присяде (Hz)
+inline constexpr float BOB_AMPLITUDE_VERTICAL = 0.020f;  // Вертикальная амплитуда (world units) - меньше!
+inline constexpr float BOB_AMPLITUDE_HORIZONTAL = 0.010f;// Горизонтальная амплитуда (world units) - меньше!
+inline constexpr float BOB_SPRINT_MULTIPLIER = 1.3f;     // Множитель амплитуды при беге
+inline constexpr float BOB_CROUCH_MULTIPLIER = 0.6f;     // Множитель амплитуды в присяде
 
 // =============================================================================
 // MAP SETTINGS

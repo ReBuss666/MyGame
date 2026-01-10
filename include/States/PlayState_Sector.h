@@ -13,16 +13,6 @@
 #include <memory>
 #include <cmath>
 
-/**
- * @brief PlayState with Sector Engine support
- * 
- * Changes from grid-based version:
- * - Uses SectorMap instead of Map
- * - Tracks player's current sector
- * - Supports sector-based collision detection
- * 
- * TODO: Replace RayCasterRenderer with SectorRenderer for portal rendering
- */
 class PlayState : public GameState {
 public:
     PlayState() = default; 
@@ -85,6 +75,9 @@ public:
         std::cout << "    Controls:" << std::endl;
         std::cout << "    - WASD: Move" << std::endl;
         std::cout << "    - Mouse/Arrow Keys: Look around" << std::endl;
+        std::cout << "    - Space: Jump" << std::endl;
+        std::cout << "    - Shift: Sprint" << std::endl;
+        std::cout << "    - C/Ctrl: Crouch" << std::endl;
         std::cout << "    - TAB: Toggle 2D/3D view" << std::endl;
         std::cout << "    - M: Lock/unlock mouse" << std::endl;
         std::cout << "    - ESC: Pause menu" << std::endl;
@@ -127,6 +120,30 @@ public:
                     unlockMouse();
                 }
             }
+            
+            // Jump (Space)
+            if (keyPressed->code == sf::Keyboard::Key::Space && player_) {
+                player_->jump();
+            }
+            
+            // Toggle crouch (C)
+            if (keyPressed->code == sf::Keyboard::Key::C && player_) {
+                player_->toggleCrouch();
+            }
+        }
+
+        // Continuous key states for sprint and hold-to-crouch
+        if (player_) {
+            // Sprint (Shift)
+            player_->setSprinting(sf::Keyboard::isKeyPressed(sf::Keyboard::Key::LShift) ||
+                                  sf::Keyboard::isKeyPressed(sf::Keyboard::Key::RShift));
+            
+            // Hold crouch (Ctrl) - alternative to toggle
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::LControl)) {
+                player_->setCrouching(true);
+            } else {
+                player_->setCrouching(false);
+            }
         }
 
         if (const auto* mouseMoved = event.getIf<sf::Event::MouseMoved>()) {
@@ -135,12 +152,19 @@ public:
                 sf::Vector2i center(windowSize.x / 2, windowSize.y / 2);
 
                 float deltaX = static_cast<float>(mouseMoved->position.x - center.x);
+                float deltaY = static_cast<float>(mouseMoved->position.y - center.y);
 
+                // Горизонтальный поворот (yaw)
                 if (std::abs(deltaX) > 0.5f) {
                     mouseRotation_ += deltaX * MOUSE_SENSITIVITY;
                 }
+                
+                // Вертикальный поворот (pitch)
+                if (std::abs(deltaY) > 0.5f) {
+                    mousePitch_ += deltaY * MOUSE_SENSITIVITY_Y;  // Плюс: мышь вверх = смотреть вверх
+                }
 
-                if (std::abs(deltaX) > 5.f) {
+                if (std::abs(deltaX) > 5.f || std::abs(deltaY) > 5.f) {
                     sf::Mouse::setPosition(center, *window_);
                 }
             }
@@ -155,22 +179,48 @@ public:
     
     void update(float deltaTime) override {
         if (player_) {
-            // TODO: Update Player::update() to use SectorMap instead of Map
-            // For now, we'll need to keep the old signature or create an adapter
+            // Get current floor height for physics
+            float currentFloorHeight = 0.0f;
+            if (currentSector_) {
+                currentFloorHeight = currentSector_->getFloorHeight();
+            }
             
-            // Update player movement (this needs to be adapted for SectorMap)
-            updatePlayerMovement(deltaTime);
+            // Update vertical movement (jumping/falling/crouching)
+            player_->updateVertical(deltaTime, currentFloorHeight);
+            
+            // Update horizontal movement and check if moving
+            bool wasMoving = updatePlayerMovement(deltaTime);
+            
+            // Update head bobbing (Doom-style camera sway)
+            player_->updateHeadBob(deltaTime, wasMoving);
             
             player_->handleKeyboardRotation(deltaTime);
 
+            // Apply mouse rotation (yaw)
             if (mouseLocked_ && std::abs(mouseRotation_) > 0.001f) {
                 float currentAngle = player_->getViewAngle();
                 player_->setViewAngle(currentAngle + mouseRotation_);
                 mouseRotation_ = 0.f;
             }
+            
+            // Apply mouse pitch (vertical look)
+            if (mouseLocked_ && std::abs(mousePitch_) > 0.001f) {
+                float currentPitch = player_->getPitchAngle();
+                player_->setPitchAngle(currentPitch + mousePitch_);
+                mousePitch_ = 0.f;
+            }
 
             // Update current sector
             updatePlayerSector();
+            
+            // Auto-step: if player moved to new sector with higher floor, snap up
+            if (currentSector_) {
+                float floorDiff = currentSector_->getFloorHeight() - player_->getVerticalPos();
+                if (floorDiff > 0 && floorDiff <= MAX_STEP_HEIGHT && player_->isGrounded()) {
+                    // Snap player up to new floor
+                    player_->setVerticalPos(currentSector_->getFloorHeight());
+                }
+            }
         }
     }
 
@@ -184,14 +234,17 @@ public:
             renderTexture_.clear(sf::Color::Black);
             
             if (sectorRenderer_ && player_ && currentSector_) {
-                // Player eye height = 0.5 units above floor
+                // Player eye height = base eye height + vertical position
+                float eyeHeight = player_->getEyeHeight();
+                float pitch = player_->getPitchAngle();
                 sectorRenderer_->render(renderTexture_, 
                                        sectorMap_,
                                        player_->getPosition(), 
                                        player_->getViewAngle(),
                                        currentSector_,
                                        FOV_RADIANS,
-                                       PLAYER_EYE_HEIGHT);
+                                       eyeHeight,
+                                       pitch);
             } else if (!currentSector_) {
                 // Player outside sectors - show warning
                 std::cerr << "[PlayState] WARNING: Player not in any sector!" << std::endl;
@@ -245,6 +298,7 @@ private:
     bool mode3D_ = true;
     bool mouseLocked_ = false;
     float mouseRotation_ = 0.f;
+    float mousePitch_ = 0.f;    // Вертикальный угол от мыши
 
     /**
      * @brief Update player's current sector
@@ -262,13 +316,7 @@ private:
         }
     }
 
-    /**
-     * @brief Update player movement with sector collision detection
-     * 
-     * TODO: This is a temporary implementation. Need to update Player class
-     * to work with SectorMap directly.
-     */
-    void updatePlayerMovement(float deltaTime) {
+    bool updatePlayerMovement(float deltaTime) {
         // Get input direction
         sf::Vector2f inputDir{0.f, 0.f};
 
@@ -300,34 +348,49 @@ private:
             if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::D)) inputDir.x += 1.f;
         }
 
+        // Check if any movement input
+        bool hasInput = (inputDir.x != 0.f || inputDir.y != 0.f);
+        
         // Normalize
-        if (inputDir.x != 0.f || inputDir.y != 0.f) {
+        if (hasInput) {
             float length = std::sqrt(inputDir.x * inputDir.x + inputDir.y * inputDir.y);
             inputDir /= length;
         }
 
+        // Calculate speed with sprint/crouch modifier
+        float speedMultiplier = player_->getSpeedMultiplier();
+        float currentSpeed = PLAYER_SPEED * speedMultiplier;
+        
         // Calculate new position
         sf::Vector2f currentPos = player_->getPosition();
-        sf::Vector2f newPos = currentPos + inputDir * PLAYER_SPEED * deltaTime;
+        sf::Vector2f newPos = currentPos + inputDir * currentSpeed * deltaTime;
 
-        // Check collision with sector walls
-        bool blocked = sectorMap_.isBlocked(currentPos, newPos, PLAYER_WIDTH / 2.0f);
+        bool actuallyMoved = false;
 
-        if (!blocked) {
+        // Check collision with sector walls (allow climbing steps while jumping/falling)
+        bool isInAir = !player_->isGrounded();
+        bool blocked = sectorMap_.isBlocked(currentPos, newPos, PLAYER_WIDTH / 2.0f, isInAir);
+
+        if (!blocked && hasInput) {
             // Move player to new position
             player_->setPosition(newPos);
-        } else {
+            actuallyMoved = true;
+        } else if (hasInput) {
             // Try sliding along walls (try X and Y separately)
             sf::Vector2f slideX = sf::Vector2f(newPos.x, currentPos.y);
             sf::Vector2f slideY = sf::Vector2f(currentPos.x, newPos.y);
             
-            if (!sectorMap_.isBlocked(currentPos, slideX, PLAYER_WIDTH / 2.0f)) {
+            if (!sectorMap_.isBlocked(currentPos, slideX, PLAYER_WIDTH / 2.0f, isInAir)) {
                 player_->setPosition(slideX);
-            } else if (!sectorMap_.isBlocked(currentPos, slideY, PLAYER_WIDTH / 2.0f)) {
+                actuallyMoved = true;
+            } else if (!sectorMap_.isBlocked(currentPos, slideY, PLAYER_WIDTH / 2.0f, isInAir)) {
                 player_->setPosition(slideY);
+                actuallyMoved = true;
             }
             // If both blocked, don't move
         }
+        
+        return actuallyMoved;
     }
 
     void lockMouse() {
@@ -398,17 +461,32 @@ private:
             std::string modeText = mode3D_ ? "3D Mode (Sector Engine)" : "2D Mode";
             std::string mouseText = mouseLocked_ ? " | Mouse: LOCKED [ESC]" : " | Click/[M] to lock";
             
+            // Player state info
+            std::string stateText = "";
+            if (player_) {
+                if (player_->isSprinting()) stateText += " [SPRINT]";
+                if (player_->isCrouching()) stateText += " [CROUCH]";
+                if (player_->isJumping()) stateText += " [JUMP]";
+                if (!player_->isGrounded()) stateText += " [AIR]";
+            }
+            
             // Current sector info
             std::string sectorText = "";
             if (currentSector_) {
                 sectorText = "\nSector " + std::to_string(currentSector_->getId()) + 
                             " | Floor: " + std::to_string(currentSector_->getFloorHeight()) +
                             "m | Ceiling: " + std::to_string(currentSector_->getCeilingHeight()) + "m";
+                if (player_) {
+                    sectorText += " | Eye: " + std::to_string(player_->getEyeHeight()).substr(0, 4) + "m";
+                }
             } else {
                 sectorText = "\nWARNING: Outside all sectors!";
             }
             
-            text.setString(modeText + mouseText + sectorText);
+            // Controls hint
+            std::string controlsText = "\n[Space] Jump | [Shift] Sprint | [C/Ctrl] Crouch";
+            
+            text.setString(modeText + mouseText + stateText + sectorText + controlsText);
             text.setCharacterSize(20);
             text.setPosition({10.f, 10.f});
             text.setFillColor(sf::Color::White);

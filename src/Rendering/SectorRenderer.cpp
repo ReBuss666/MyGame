@@ -8,6 +8,7 @@ SectorRenderer::SectorRenderer(int screenWidth, int screenHeight)
     : screenWidth_(screenWidth)
     , screenHeight_(screenHeight)
     , renderDistance_(20.f)
+    , currentPitch_(0.0f)
     , wallTexture_(nullptr)
 {
     // Увеличиваем буфер для множества стен (порталы могут добавлять стены)
@@ -34,7 +35,11 @@ void SectorRenderer::render(sf::RenderTarget& target,
                            float playerAngle,
                            const Sector* currentSector,
                            float fov,
-                           float playerHeight) {
+                           float playerHeight,
+                           float pitch) {
+    
+    // Store pitch for background rendering
+    currentPitch_ = pitch;
     
     drawBackground(target, currentSector);
     
@@ -48,7 +53,12 @@ void SectorRenderer::render(sf::RenderTarget& target,
     
     // Параметры проекции
     float projDist = (screenHeight_ / 2.0f) / std::tan(fov / 2.0f);
-    float screenCenterY = screenHeight_ / 2.0f;
+    
+    // Центр экрана смещается в зависимости от pitch
+    // pitch от -1 до 1, смещаем центр на половину высоты экрана максимум
+    float pitchOffset = pitch * screenHeight_ * 0.5f;
+    float screenCenterY = screenHeight_ / 2.0f - pitchOffset;
+    
     const float WORLD_SCALE = TILE_SIZE;
 
     // Счётчик вершин для динамического добавления стен
@@ -166,14 +176,9 @@ void SectorRenderer::render(sf::RenderTarget& target,
                     float lowerBottom = std::min(clipBottom, currentFloorY);
                     
                     if (lowerTop < lowerBottom) {
-                        // Немного другой цвет для ступеньки
-                        sf::Color stepColor(
-                            static_cast<uint8_t>(200 * brightness),
-                            static_cast<uint8_t>(180 * brightness),
-                            static_cast<uint8_t>(150 * brightness)
-                        );
+                        // Используем тот же цвет что и для обычных стен
                         drawWallSegment(vertexIndex, x, lowerTop, lowerBottom, 
-                                       currentCeilingY, screenScaleFactor, wallX, stepColor);
+                                       currentCeilingY, screenScaleFactor, wallX, wallColor);
                     }
                 }
 
@@ -257,18 +262,37 @@ void SectorRenderer::drawWallSegment(size_t& vertexIndex, int x,
 }
 
 void SectorRenderer::drawBackground(sf::RenderTarget& target, const Sector* sector) {
-    // Sky (upper half)
+    // Horizon line shifts with pitch
+    float pitchOffset = currentPitch_ * screenHeight_ * 0.5f;
+    float horizonY = screenHeight_ / 2.0f - pitchOffset;
+    
+    // Sky (above horizon)
     sf::RectangleShape sky;
-    sky.setSize({static_cast<float>(screenWidth_), static_cast<float>(screenHeight_ / 2)});
+    sky.setSize({static_cast<float>(screenWidth_), horizonY});
     sky.setFillColor(sf::Color(SKY_R, SKY_G, SKY_B));
     target.draw(sky);
 
-    // Floor (lower half)
-    sf::RectangleShape floor;
-    floor.setSize({static_cast<float>(screenWidth_), static_cast<float>(screenHeight_ / 2)});
-    floor.setPosition({0.f, static_cast<float>(screenHeight_ / 2)});
-    floor.setFillColor(sf::Color(FLOOR_R, FLOOR_G, FLOOR_B));
-    target.draw(floor);
+    // Floor with distance-based darkening (gradient from horizon to bottom)
+    // Near horizon = darker (far away), at bottom = brighter (close)
+    sf::VertexArray floorGradient(sf::PrimitiveType::Triangles, 6);
+    
+    float floorHeight = static_cast<float>(screenHeight_) - horizonY;
+    
+    // Dark color at horizon (far)
+    sf::Color farColor(FLOOR_R / 4, FLOOR_G / 4, FLOOR_B / 4);
+    // Normal color at bottom (near)
+    sf::Color nearColor(FLOOR_R, FLOOR_G, FLOOR_B);
+    
+    // Two triangles for floor quad with gradient
+    floorGradient[0] = sf::Vertex({0.f, horizonY}, farColor);
+    floorGradient[1] = sf::Vertex({0.f, static_cast<float>(screenHeight_)}, nearColor);
+    floorGradient[2] = sf::Vertex({static_cast<float>(screenWidth_), horizonY}, farColor);
+    
+    floorGradient[3] = sf::Vertex({static_cast<float>(screenWidth_), horizonY}, farColor);
+    floorGradient[4] = sf::Vertex({0.f, static_cast<float>(screenHeight_)}, nearColor);
+    floorGradient[5] = sf::Vertex({static_cast<float>(screenWidth_), static_cast<float>(screenHeight_)}, nearColor);
+    
+    target.draw(floorGradient);
 }
 
 void SectorRenderer::drawTexturedColumn(int x, float wallTopY, float wallBottomY, float wallX, 
