@@ -7,12 +7,6 @@
 #include <cstdint>
 #include "../Core/ResourceManager.h"
 
-/**
- * @brief Optimized Button using ResourceManager
- * 
- * No longer loads fonts individually - uses cached fonts from ResourceManager.
- * SFML 3.0 compatible.
- */
 class Button {
 public:
     Button(const std::string& text, sf::Vector2f position, sf::Vector2f size = {300.f, 60.f}) 
@@ -29,7 +23,6 @@ public:
         shape_.setOutlineThickness(2.f);
         shape_.setOutlineColor(sf::Color(150, 150, 150));
         
-        // Try to load font from ResourceManager with fallback chain
         const std::vector<std::string> fontPaths = {
             "../assets/fonts/Orbitron-Black.ttf",
             "C:/Windows/Fonts/arial.ttf",
@@ -85,7 +78,7 @@ public:
 
 private:
     std::string text_;
-    sf::Font* font_; // Pointer to cached font in ResourceManager
+    sf::Font* font_;
     std::optional<sf::Text> textLabel_;
     sf::Vector2f position_;
     sf::Vector2f size_;

@@ -7,14 +7,6 @@
 #include <functional>
 #include <iostream>
 
-/**
- * @brief Optimized StateManager for SFML 3.0
- * 
- * Changes from original:
- * - Removed unnecessary double window clear/display in switchTo()
- * - Simplified state transition logic
- * - Better debug output
- */
 class StateManager {
 public: 
     StateManager() : window_(nullptr) {}
@@ -47,10 +39,7 @@ public:
             states_.pop();
         }
         
-        // OPTIMIZATION: Removed unnecessary double clear/display
-        // The main loop handles window clearing properly
-        
-        // Create new state
+
         auto newState = createState(stateName);
         if (newState) {
             newState->stateManager_ = this;

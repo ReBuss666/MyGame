@@ -6,17 +6,6 @@
 #include <iostream>
 #include <algorithm>
 
-/**
- * @brief Singleton class for managing game settings
- * 
- * Handles:
- * - Resolution selection
- * - Fullscreen mode
- * - VSync
- * - Mouse sensitivity
- * - Audio volume
- * - Save/Load settings to file
- */
 class GameSettings {
 public:
     struct Resolution {
@@ -37,11 +26,9 @@ public:
         return instance;
     }
 
-    // Delete copy/move
     GameSettings(const GameSettings&) = delete;
     GameSettings& operator=(const GameSettings&) = delete;
 
-    // Resolution
     const std::vector<Resolution>& getAvailableResolutions() const { return availableResolutions_; }
     Resolution getCurrentResolution() const { return currentResolution_; }
     int getCurrentResolutionIndex() const {
@@ -65,7 +52,6 @@ public:
         }
     }
 
-    // Fullscreen
     bool isFullscreen() const { return fullscreen_; }
     void setFullscreen(bool fs) { 
         fullscreen_ = fs; 
@@ -73,7 +59,6 @@ public:
     }
     void toggleFullscreen() { setFullscreen(!fullscreen_); }
 
-    // VSync
     bool isVSyncEnabled() const { return vsync_; }
     void setVSync(bool enabled) { 
         vsync_ = enabled; 
@@ -81,21 +66,18 @@ public:
     }
     void toggleVSync() { setVSync(!vsync_); }
 
-    // FPS Limit
     int getFPSLimit() const { return fpsLimit_; }
     void setFPSLimit(int fps) { 
         fpsLimit_ = std::clamp(fps, 30, 240); 
         settingsChanged_ = true;
     }
 
-    // Mouse sensitivity
     float getMouseSensitivity() const { return mouseSensitivity_; }
     void setMouseSensitivity(float sens) { 
         mouseSensitivity_ = std::clamp(sens, 0.1f, 3.0f); 
         settingsChanged_ = true;
     }
 
-    // Audio
     float getMasterVolume() const { return masterVolume_; }
     void setMasterVolume(float vol) { 
         masterVolume_ = std::clamp(vol, 0.0f, 1.0f); 
@@ -114,20 +96,15 @@ public:
         settingsChanged_ = true;
     }
 
-    // Field of View
     float getFOV() const { return fov_; }
     void setFOV(float fov) { 
         fov_ = std::clamp(fov, 45.0f, 120.0f); 
         settingsChanged_ = true;
     }
 
-    // Check if settings need to be applied
     bool hasSettingsChanged() const { return settingsChanged_; }
     void clearSettingsChanged() { settingsChanged_ = false; }
 
-    /**
-     * @brief Apply settings to a window
-     */
     void applyToWindow(sf::RenderWindow& window) {
         std::cout << "[GameSettings] Applying settings..." << std::endl;
         
@@ -152,9 +129,6 @@ public:
                   << " VSync: " << (vsync_ ? "Yes" : "No") << std::endl;
     }
 
-    /**
-     * @brief Save settings to file
-     */
     bool saveSettings(const std::string& filepath = "settings.cfg") {
         std::ofstream file(filepath);
         if (!file.is_open()) {
@@ -179,9 +153,6 @@ public:
         return true;
     }
 
-    /**
-     * @brief Load settings from file
-     */
     bool loadSettings(const std::string& filepath = "settings.cfg") {
         std::ifstream file(filepath);
         if (!file.is_open()) {
@@ -218,7 +189,6 @@ public:
 
 private:
     GameSettings() {
-        // Initialize available resolutions
         availableResolutions_ = {
             {1280, 720},
             {1366, 768},
@@ -229,7 +199,6 @@ private:
             {3840, 2160}
         };
         
-        // Default settings
         currentResolution_ = {1920, 1080};
         fullscreen_ = false;
         vsync_ = true;

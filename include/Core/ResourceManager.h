@@ -6,12 +6,6 @@
 #include <string>
 #include <iostream>
 
-/**
- * @brief Singleton ResourceManager for caching game assets
- * 
- * Prevents duplicate loading of textures, fonts, and sounds.
- * Thread-safe singleton implementation for SFML 3.0
- */
 class ResourceManager {
 public:
     static ResourceManager& getInstance() {
@@ -19,11 +13,9 @@ public:
         return instance;
     }
 
-    // Delete copy and move constructors
     ResourceManager(const ResourceManager&) = delete;
     ResourceManager& operator=(const ResourceManager&) = delete;
 
-    // Texture management
     sf::Texture* getTexture(const std::string& filepath) {
         auto it = textures_.find(filepath);
         if (it != textures_.end()) {
@@ -38,14 +30,13 @@ public:
         }
 
         std::cout << "[ResourceManager] Texture '" << filepath << "' loaded from disk" << std::endl;
-        texture->setSmooth(false); // Default pixel art setting
+        texture->setSmooth(false);
         
         sf::Texture* ptr = texture.get();
         textures_[filepath] = std::move(texture);
         return ptr;
     }
 
-    // Font management
     sf::Font* getFont(const std::string& filepath) {
         auto it = fonts_.find(filepath);
         if (it != fonts_.end()) {
@@ -66,7 +57,6 @@ public:
         return ptr;
     }
 
-    // Sound buffer management (for sound effects)
     sf::SoundBuffer* getSoundBuffer(const std::string& filepath) {
         auto it = soundBuffers_.find(filepath);
         if (it != soundBuffers_.end()) {
@@ -86,7 +76,6 @@ public:
         return ptr;
     }
 
-    // Clear specific resource type
     void clearTextures() { 
         textures_.clear(); 
         std::cout << "[ResourceManager] All textures cleared" << std::endl;
@@ -102,7 +91,6 @@ public:
         std::cout << "[ResourceManager] All sounds cleared" << std::endl;
     }
 
-    // Clear all resources
     void clearAll() {
         textures_.clear();
         fonts_.clear();
@@ -110,7 +98,6 @@ public:
         std::cout << "[ResourceManager] All resources cleared" << std::endl;
     }
 
-    // Get resource counts for debugging
     size_t getTextureCount() const { return textures_.size(); }
     size_t getFontCount() const { return fonts_.size(); }
     size_t getSoundCount() const { return soundBuffers_.size(); }

@@ -13,10 +13,10 @@ FireEffect::FireEffect(int width, int height, int pixelSize)
     , flashCounter_(0)
     , flashDuration_(FLASH_DURATION)
     , fuelEnabled_(true)
-    , rng_(std::random_device{}()) // Seed with random_device
-    , decayDist_(0, 1)             // Decay: 0 or 1
-    , driftDist_(-1, 1)            // Drift: -1, 0, or 1
-    , flashDist_(20, 36)           // Flash intensity: 20-36
+    , rng_(std::random_device{}())
+    , decayDist_(0, 1)
+    , driftDist_(-1, 1)
+    , flashDist_(20, 36)
 {
     initPalette();
     vertices_.resize(width * height * 6);
@@ -85,10 +85,8 @@ void FireEffect::doFire(int x, int y) {
 
     int heat = firePixels_[src_index];
     
-    // OPTIMIZATION: Skip if pixel is already cold
     if (heat <= 0) return;
 
-    // Use modern C++ random distributions
     int decay = decayDist_(rng_);
     int drift = driftDist_(rng_);
 
@@ -111,7 +109,6 @@ void FireEffect::update() {
     
     fuel();
 
-    // Update fire simulation
     for (int x = 0; x < width_; ++x) {
         for (int y = 1; y < height_; ++y) {
             doFire(x, y);
@@ -129,8 +126,6 @@ void FireEffect::updateVertices() {
         for (int x = 0; x < width_; ++x) {
             int heat = firePixels_[getIndex(x, y)];
             
-            // OPTIMIZATION: Use transparent color for cold pixels instead of skipping
-            // (Skipping would require dynamic vertex array resizing)
             sf::Color color;
             if (heat > 0) {
                 color = palette_[std::min(heat, 36)];
@@ -144,7 +139,6 @@ void FireEffect::updateVertices() {
             float right = left + static_cast<float>(pixelSize_);
             float bottom = top + static_cast<float>(pixelSize_);
             
-            // First triangle
             vertices_[vertexIndex + 0].position = sf::Vector2f{left, top};
             vertices_[vertexIndex + 0].color = color;
             
@@ -154,7 +148,6 @@ void FireEffect::updateVertices() {
             vertices_[vertexIndex + 2].position = sf::Vector2f{right, top};
             vertices_[vertexIndex + 2].color = color;
             
-            // Second triangle
             vertices_[vertexIndex + 3].position = sf::Vector2f{left, bottom};
             vertices_[vertexIndex + 3].color = color;
             
@@ -168,7 +161,6 @@ void FireEffect::updateVertices() {
         }
     }
 
-    // Debug: Log efficiency (only occasionally)
     static int frameCount = 0;
     if (++frameCount % 300 == 0) {
         float efficiency = (skippedPixels * 100.0f) / (width_ * height_);
@@ -178,7 +170,7 @@ void FireEffect::updateVertices() {
 
 void FireEffect::triggerFlash() {
     for (int i = 0; i < static_cast<int>(firePixels_.size()); ++i) {
-        firePixels_[i] = flashDist_(rng_); // Use distribution instead of rand()
+        firePixels_[i] = flashDist_(rng_);
     }
     flashActive_ = true;
     flashCounter_ = 0;

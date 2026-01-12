@@ -5,7 +5,6 @@
 void MenuState::onEnter() {
     std::cout << "=== MenuState: Loading resources ===" << std::endl;
 
-    // Debug: Print current working directory
     std::cout << "[MenuState] Loading logo from: ../assets/logo.png" << std::endl;
     
     logoTexture_ = ResourceManager::getInstance().getTexture("../assets/logo.png");
@@ -168,12 +167,10 @@ void MenuState::update(float deltaTime) {
 }
 
 void MenuState::render(sf::RenderWindow& window) {
-    // Logo on top of fire
     if (logoSprite_) {
         window.draw(*logoSprite_);
     }
 
-    // Fire effect 
     if (fireEffect_) {
         fireEffect_->render(window);
     }
@@ -182,7 +179,6 @@ void MenuState::render(sf::RenderWindow& window) {
         window.draw(*shineSprite_, sf::BlendAdd);
     }
 
-    // Buttons on top
     for (auto& button : buttons_) {
         button->render(window);
     }

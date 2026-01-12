@@ -11,9 +11,8 @@ SectorRenderer::SectorRenderer(int screenWidth, int screenHeight)
     , currentPitch_(0.0f)
     , wallTexture_(nullptr)
 {
-    // Увеличиваем буфер для множества стен (порталы могут добавлять стены)
     columnVertices_.setPrimitiveType(sf::PrimitiveType::Triangles);
-    columnVertices_.resize(screenWidth_ * 6 * 10);  // До 10 стен на столбец (порталы)
+    columnVertices_.resize(screenWidth_ * 6 * 10);
     
     floorCeilingVertices_.setPrimitiveType(sf::PrimitiveType::Triangles);
     floorCeilingVertices_.resize(screenWidth_ * 12);
@@ -38,7 +37,6 @@ void SectorRenderer::render(sf::RenderTarget& target,
                            float playerHeight,
                            float pitch) {
     
-    // Store pitch for background rendering
     currentPitch_ = pitch;
     
     drawBackground(target, currentSector);
@@ -48,25 +46,18 @@ void SectorRenderer::render(sf::RenderTarget& target,
         return;
     }
 
-    // Высота глаз игрока в мировых единицах
     float playerEyeZ = currentSector->getFloorHeight() + playerHeight;
     
-    // Параметры проекции
     float projDist = (screenHeight_ / 2.0f) / std::tan(fov / 2.0f);
     
-    // Центр экрана смещается в зависимости от pitch
-    // pitch от -1 до 1, смещаем центр на половину высоты экрана максимум
     float pitchOffset = pitch * screenHeight_ * 0.5f;
     float screenCenterY = screenHeight_ / 2.0f - pitchOffset;
     
     const float WORLD_SCALE = TILE_SIZE;
 
-    // Счётчик вершин для динамического добавления стен
     size_t vertexIndex = 0;
 
-    // Рендер каждого столбца экрана
     for (int x = 0; x < screenWidth_; ++x) {
-        // Направление луча
         float cameraX = 2.0f * x / static_cast<float>(screenWidth_) - 1.0f;
         float rayAngle = playerAngle + std::atan(cameraX * std::tan(fov / 2.0f));
         float cosCorrection = std::cos(rayAngle - playerAngle);
@@ -81,7 +72,6 @@ void SectorRenderer::render(sf::RenderTarget& target,
         int maxPortals = 8;  // Максимальная глубина порталов
 
         for (int portalDepth = 0; portalDepth < maxPortals && sector != nullptr; ++portalDepth) {
-            // Найти ближайшую стену в текущем секторе
             float closestDist = renderDistance_ * TILE_SIZE;
             const Wall* closestWall = nullptr;
             bool closestSide = false;
@@ -99,21 +89,18 @@ void SectorRenderer::render(sf::RenderTarget& target,
                 }
             }
 
-            if (!closestWall) break;  // Нет стен - выход
+            if (!closestWall) break;
 
             totalDistance += closestDist;
             float correctedDist = totalDistance * cosCorrection;
             if (correctedDist < 0.1f) correctedDist = 0.1f;
 
-            // Высоты текущего сектора
             float currentFloor = sector->getFloorHeight();
             float currentCeiling = sector->getCeilingHeight();
 
-            // Проекция высот текущего сектора на экран
             float currentFloorY = screenCenterY - (currentFloor - playerEyeZ) * projDist * WORLD_SCALE / correctedDist;
             float currentCeilingY = screenCenterY - (currentCeiling - playerEyeZ) * projDist * WORLD_SCALE / correctedDist;
 
-            // screenScaleFactor для текстурных координат (используем ЭКРАННУЮ высоту стены)
             float wallScreenHeight = currentFloorY - currentCeilingY;
             if (wallScreenHeight < 0.1f) wallScreenHeight = 0.1f;
 
@@ -121,11 +108,9 @@ void SectorRenderer::render(sf::RenderTarget& target,
             float zoomfactor = 2.f;
             float screenScaleFactor = (textureHeight * zoomfactor) / wallScreenHeight;
 
-            // Текстурные координаты
             sf::Vector2f hitPoint = rayOrigin + rayDir * closestDist;
             float wallX = calculateTextureX(*closestWall, hitPoint, closestSide);
 
-            // Яркость
             float worldDist = correctedDist / TILE_SIZE;
             float brightness = std::max(0.3f, 1.0f - (worldDist / renderDistance_));
             if (closestSide) brightness *= 0.7f;
@@ -138,12 +123,8 @@ void SectorRenderer::render(sf::RenderTarget& target,
             );
 
             if (closestWall->isPortal()) {
-                // ========================================
-                // ПОРТАЛ - рисуем upper/lower walls
-                // ========================================
                 Sector* neighbor = closestWall->getNeighborSector();
                 if (!neighbor) {
-                    // Битый портал - рисуем как твёрдую стену
                     drawWallSegment(vertexIndex, x, 
                                    std::max(clipTop, currentCeilingY),
                                    std::min(clipBottom, currentFloorY),
@@ -155,11 +136,9 @@ void SectorRenderer::render(sf::RenderTarget& target,
                 float neighborFloor = neighbor->getFloorHeight();
                 float neighborCeiling = neighbor->getCeilingHeight();
 
-                // Проекция высот соседнего сектора
                 float neighborFloorY = screenCenterY - (neighborFloor - playerEyeZ) * projDist * WORLD_SCALE / correctedDist;
                 float neighborCeilingY = screenCenterY - (neighborCeiling - playerEyeZ) * projDist * WORLD_SCALE / correctedDist;
 
-                // UPPER WALL: если потолок соседа ниже нашего
                 if (neighborCeiling < currentCeiling) {
                     float upperTop = std::max(clipTop, currentCeilingY);
                     float upperBottom = std::min(clipBottom, neighborCeilingY);
@@ -170,37 +149,28 @@ void SectorRenderer::render(sf::RenderTarget& target,
                     }
                 }
 
-                // LOWER WALL (СТУПЕНЬКА ВВЕРХ): если пол соседа выше нашего
                 if (neighborFloor > currentFloor) {
                     float lowerTop = std::max(clipTop, neighborFloorY);
                     float lowerBottom = std::min(clipBottom, currentFloorY);
                     
                     if (lowerTop < lowerBottom) {
-                        // Используем тот же цвет что и для обычных стен
                         drawWallSegment(vertexIndex, x, lowerTop, lowerBottom, 
                                        currentCeilingY, screenScaleFactor, wallX, wallColor);
                     }
                 }
 
-                // Обновляем clip window для следующего сектора
-                // Берём максимальные ограничения от обоих секторов
                 float portalTop = std::max(currentCeilingY, neighborCeilingY);
                 float portalBottom = std::min(currentFloorY, neighborFloorY);
                 
                 clipTop = std::max(clipTop, portalTop);
                 clipBottom = std::min(clipBottom, portalBottom);
 
-                // Если окно закрылось - прекращаем
                 if (clipTop >= clipBottom) break;
 
-                // Продолжаем луч в соседний сектор
                 rayOrigin = hitPoint + rayDir * 0.1f;
                 sector = neighbor;
 
             } else {
-                // ========================================
-                // ТВЁРДАЯ СТЕНА - рисуем полностью и выходим
-                // ========================================
                 float wallTop = std::max(clipTop, currentCeilingY);
                 float wallBottom = std::min(clipBottom, currentFloorY);
                 
@@ -208,20 +178,17 @@ void SectorRenderer::render(sf::RenderTarget& target,
                     drawWallSegment(vertexIndex, x, wallTop, wallBottom, 
                                    currentCeilingY, screenScaleFactor, wallX, wallColor);
                 }
-                break;  // Твёрдая стена - луч остановился
+                break;
             }
         }
     }
 
-    // Обрезаем неиспользованные вершины
     columnVertices_.resize(vertexIndex);
 
-    // Рисуем все стены
     sf::RenderStates states;
     if (wallTexture_) states.texture = wallTexture_;
     target.draw(columnVertices_, states);
 
-    // Восстанавливаем размер буфера для следующего кадра
     columnVertices_.resize(screenWidth_ * 6 * 10);
 }
 
@@ -237,17 +204,14 @@ void SectorRenderer::drawWallSegment(size_t& vertexIndex, int x,
     
     float texX = wallX * textureWidth;
     
-    // texture маштабируется по высоте стены
     float texYStart = (top - anchorTopY) * screenScaleFactor;
     float texYEnd = (bottom - anchorTopY) * screenScaleFactor;
 
-    // заполняем вершины
     float left = static_cast<float>(x);
     float right = left + 1.f;
 
-    // Проверяем границы буфера
     if (vertexIndex + 6 > columnVertices_.getVertexCount()) {
-        return;  // Буфер переполнен
+        return;
     }
 
     columnVertices_[vertexIndex + 0] = sf::Vertex({left, top}, color, {texX, texYStart});
@@ -262,28 +226,21 @@ void SectorRenderer::drawWallSegment(size_t& vertexIndex, int x,
 }
 
 void SectorRenderer::drawBackground(sf::RenderTarget& target, const Sector* sector) {
-    // Horizon line shifts with pitch
     float pitchOffset = currentPitch_ * screenHeight_ * 0.5f;
     float horizonY = screenHeight_ / 2.0f - pitchOffset;
     
-    // Sky (above horizon)
     sf::RectangleShape sky;
     sky.setSize({static_cast<float>(screenWidth_), horizonY});
     sky.setFillColor(sf::Color(SKY_R, SKY_G, SKY_B));
     target.draw(sky);
 
-    // Floor with distance-based darkening (gradient from horizon to bottom)
-    // Near horizon = darker (far away), at bottom = brighter (close)
     sf::VertexArray floorGradient(sf::PrimitiveType::Triangles, 6);
     
     float floorHeight = static_cast<float>(screenHeight_) - horizonY;
     
-    // Dark color at horizon (far)
     sf::Color farColor(FLOOR_R / 4, FLOOR_G / 4, FLOOR_B / 4);
-    // Normal color at bottom (near)
     sf::Color nearColor(FLOOR_R, FLOOR_G, FLOOR_B);
     
-    // Two triangles for floor quad with gradient
     floorGradient[0] = sf::Vertex({0.f, horizonY}, farColor);
     floorGradient[1] = sf::Vertex({0.f, static_cast<float>(screenHeight_)}, nearColor);
     floorGradient[2] = sf::Vertex({static_cast<float>(screenWidth_), horizonY}, farColor);
@@ -297,7 +254,6 @@ void SectorRenderer::drawBackground(sf::RenderTarget& target, const Sector* sect
 
 void SectorRenderer::drawTexturedColumn(int x, float wallTopY, float wallBottomY, float wallX, 
                                         sf::Color color, float texYStart, float texYEnd) {
-    // Legacy function - kept for compatibility
     float drawStart = std::max(0.0f, wallTopY);
     float drawEnd = std::min(static_cast<float>(screenHeight_), wallBottomY);
 
@@ -364,7 +320,6 @@ bool SectorRenderer::castRay(const Sector& sector,
                              bool& hitSide,
                              const Sector** hitSector,
                              int maxDepth) {
-    // Legacy function - main rendering now uses inline portal logic
     
     float closestDist = renderDistance_ * TILE_SIZE;
     const Wall* closestWall = nullptr;
@@ -456,16 +411,12 @@ float SectorRenderer::calculateTextureX(const Wall& wall, sf::Vector2f hitPoint,
     float wallLengthSq = wallDir.x * wallDir.x + wallDir.y * wallDir.y;
     if (wallLengthSq < 0.0001f) return 0.0f;
     
-    // Проекция точки попадания на направление стены (скалярное произведение)
     sf::Vector2f toHit = hitPoint - start;
-    // t = dot(toHit, wallDir) / |wallDir|^2 даёт параметр [0,1] вдоль стены
     float t = (toHit.x * wallDir.x + toHit.y * wallDir.y) / wallLengthSq;
     
-    // Расстояние вдоль стены в мировых единицах
     float wallLength = std::sqrt(wallLengthSq);
     float distAlongWall = t * wallLength;
     
-    // Тайлинг текстуры по TILE_SIZE
     float wallX = std::fmod(distAlongWall, TILE_SIZE) / TILE_SIZE;
     if (wallX < 0.0f) wallX += 1.0f;
     

@@ -20,7 +20,6 @@ public:
     void onEnter() override {
         std::cout << "=== PlayState (Sector Engine): Entering ===" << std::endl;
         
-        // Setup render texture
         if (!renderTexture_.resize({INTERNAL_WIDTH, INTERNAL_HEIGHT})) {
             std::cerr << "ERROR: Failed to create render texture!" << std::endl;
         }
@@ -28,21 +27,16 @@ public:
         
         renderSprite_ = std::make_unique<sf::Sprite>(renderTexture_.getTexture());
 
-        // Create sector map
         std::cout << "[PlayState] Building sector map..." << std::endl;
         sectorMap_ = TestMapBuilder::buildSimpleStepMap();
         
-        // Validate map
         if (!sectorMap_.validate()) {
             std::cerr << "ERROR: Sector map validation failed!" << std::endl;
         }
 
-        // Create player in first sector (center of sector 0: 2 units in from corner)
-        // Map uses 64 pixel units, so center of 4x4 sector at (0,0) is at (2*64, 2*64) = (128, 128)
         const float UNIT = 64.0f;
         player_ = std::make_unique<Player>(sf::Vector2f(2.0f * UNIT, 2.0f * UNIT));
         
-        // Find initial sector
         updatePlayerSector();
         
         if (currentSector_) {
@@ -51,11 +45,9 @@ public:
             std::cerr << "WARNING: Player not in any sector!" << std::endl;
         }
 
-        // Create sector renderer
         sectorRenderer_ = std::make_unique<SectorRenderer>(INTERNAL_WIDTH, INTERNAL_HEIGHT);
         sectorRenderer_->setRenderDistance(RAYCASTER_RENDER_DISTANCE);
 
-        // Load textures
         wallTexture_ = ResourceManager::getInstance().getTexture(Assets::WALL_TEXTURE);
         if (wallTexture_) {
             wallTexture_->setRepeated(true); 
@@ -121,24 +113,19 @@ public:
                 }
             }
             
-            // Jump (Space)
             if (keyPressed->code == sf::Keyboard::Key::Space && player_) {
                 player_->jump();
             }
             
-            // Toggle crouch (C)
             if (keyPressed->code == sf::Keyboard::Key::C && player_) {
                 player_->toggleCrouch();
             }
         }
 
-        // Continuous key states for sprint and hold-to-crouch
         if (player_) {
-            // Sprint (Shift)
             player_->setSprinting(sf::Keyboard::isKeyPressed(sf::Keyboard::Key::LShift) ||
                                   sf::Keyboard::isKeyPressed(sf::Keyboard::Key::RShift));
             
-            // Hold crouch (Ctrl) - alternative to toggle
             if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::LControl)) {
                 player_->setCrouching(true);
             } else {
@@ -154,14 +141,12 @@ public:
                 float deltaX = static_cast<float>(mouseMoved->position.x - center.x);
                 float deltaY = static_cast<float>(mouseMoved->position.y - center.y);
 
-                // Горизонтальный поворот (yaw)
                 if (std::abs(deltaX) > 0.5f) {
                     mouseRotation_ += deltaX * MOUSE_SENSITIVITY;
                 }
                 
-                // Вертикальный поворот (pitch)
                 if (std::abs(deltaY) > 0.5f) {
-                    mousePitch_ += deltaY * MOUSE_SENSITIVITY_Y;  // Плюс: мышь вверх = смотреть вверх
+                    mousePitch_ += deltaY * MOUSE_SENSITIVITY_Y;
                 }
 
                 if (std::abs(deltaX) > 5.f || std::abs(deltaY) > 5.f) {
@@ -179,45 +164,36 @@ public:
     
     void update(float deltaTime) override {
         if (player_) {
-            // Get current floor height for physics
             float currentFloorHeight = 0.0f;
             if (currentSector_) {
                 currentFloorHeight = currentSector_->getFloorHeight();
             }
             
-            // Update vertical movement (jumping/falling/crouching)
             player_->updateVertical(deltaTime, currentFloorHeight);
             
-            // Update horizontal movement and check if moving
             bool wasMoving = updatePlayerMovement(deltaTime);
             
-            // Update head bobbing (Doom-style camera sway)
             player_->updateHeadBob(deltaTime, wasMoving);
             
             player_->handleKeyboardRotation(deltaTime);
 
-            // Apply mouse rotation (yaw)
             if (mouseLocked_ && std::abs(mouseRotation_) > 0.001f) {
                 float currentAngle = player_->getViewAngle();
                 player_->setViewAngle(currentAngle + mouseRotation_);
                 mouseRotation_ = 0.f;
             }
             
-            // Apply mouse pitch (vertical look)
             if (mouseLocked_ && std::abs(mousePitch_) > 0.001f) {
                 float currentPitch = player_->getPitchAngle();
                 player_->setPitchAngle(currentPitch + mousePitch_);
                 mousePitch_ = 0.f;
             }
 
-            // Update current sector
             updatePlayerSector();
             
-            // Auto-step: if player moved to new sector with higher floor, snap up
             if (currentSector_) {
                 float floorDiff = currentSector_->getFloorHeight() - player_->getVerticalPos();
                 if (floorDiff > 0 && floorDiff <= MAX_STEP_HEIGHT && player_->isGrounded()) {
-                    // Snap player up to new floor
                     player_->setVerticalPos(currentSector_->getFloorHeight());
                 }
             }
@@ -230,11 +206,9 @@ public:
         }
 
         if (mode3D_) {
-            // 3D Mode - render with SectorRenderer
-            renderTexture_.clear(sf::Color::Black);
+            renderTexture_.clear(sf::Color::Black);;
             
             if (sectorRenderer_ && player_ && currentSector_) {
-                // Player eye height = base eye height + vertical position
                 float eyeHeight = player_->getEyeHeight();
                 float pitch = player_->getPitchAngle();
                 sectorRenderer_->render(renderTexture_, 
@@ -246,7 +220,6 @@ public:
                                        eyeHeight,
                                        pitch);
             } else if (!currentSector_) {
-                // Player outside sectors - show warning
                 std::cerr << "[PlayState] WARNING: Player not in any sector!" << std::endl;
             }
             renderTexture_.display();
@@ -259,7 +232,6 @@ public:
             }
             drawCrosshair(window);
         } else {
-            // 2D Mode - render sectors from top-down
             sectorMap_.render2D(window, player_->getPosition(), 1.0f);
             
             if (player_) {
@@ -267,13 +239,12 @@ public:
                 drawViewDirection(window);
             }
 
-            // Highlight current sector
             if (currentSector_) {
                 sf::FloatRect bounds = currentSector_->getBounds();
                 sf::RectangleShape highlight;
                 highlight.setSize({bounds.size.x, bounds.size.y});
                 highlight.setPosition({bounds.position.x, bounds.position.y});
-                highlight.setFillColor(sf::Color(255, 255, 0, 30)); // Yellow highlight
+                highlight.setFillColor(sf::Color(255, 255, 0, 30));
                 highlight.setOutlineColor(sf::Color::Yellow);
                 highlight.setOutlineThickness(2.0f);
                 window.draw(highlight);
@@ -298,11 +269,8 @@ private:
     bool mode3D_ = true;
     bool mouseLocked_ = false;
     float mouseRotation_ = 0.f;
-    float mousePitch_ = 0.f;    // Вертикальный угол от мыши
+    float mousePitch_ = 0.f;
 
-    /**
-     * @brief Update player's current sector
-     */
     void updatePlayerSector() {
         Sector* newSector = sectorMap_.findSectorAt(player_->getPosition());
         
@@ -317,11 +285,9 @@ private:
     }
 
     bool updatePlayerMovement(float deltaTime) {
-        // Get input direction
         sf::Vector2f inputDir{0.f, 0.f};
 
         if (mode3D_) {
-            // 3D Mode: WASD relative to view direction
             float viewAngle = player_->getViewAngle();
             
             if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::W)) {
@@ -341,42 +307,34 @@ private:
                 inputDir.y += std::sin(viewAngle + M_PI / 2.f);
             }
         } else {
-            // 2D Mode: Axis-aligned movement
             if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::W)) inputDir.y -= 1.f;
             if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S)) inputDir.y += 1.f;
             if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::A)) inputDir.x -= 1.f;
             if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::D)) inputDir.x += 1.f;
         }
 
-        // Check if any movement input
         bool hasInput = (inputDir.x != 0.f || inputDir.y != 0.f);
         
-        // Normalize
         if (hasInput) {
             float length = std::sqrt(inputDir.x * inputDir.x + inputDir.y * inputDir.y);
             inputDir /= length;
         }
 
-        // Calculate speed with sprint/crouch modifier
         float speedMultiplier = player_->getSpeedMultiplier();
         float currentSpeed = PLAYER_SPEED * speedMultiplier;
         
-        // Calculate new position
         sf::Vector2f currentPos = player_->getPosition();
         sf::Vector2f newPos = currentPos + inputDir * currentSpeed * deltaTime;
 
         bool actuallyMoved = false;
 
-        // Check collision with sector walls (allow climbing steps while jumping/falling)
         bool isInAir = !player_->isGrounded();
         bool blocked = sectorMap_.isBlocked(currentPos, newPos, PLAYER_WIDTH / 2.0f, isInAir);
 
         if (!blocked && hasInput) {
-            // Move player to new position
             player_->setPosition(newPos);
             actuallyMoved = true;
         } else if (hasInput) {
-            // Try sliding along walls (try X and Y separately)
             sf::Vector2f slideX = sf::Vector2f(newPos.x, currentPos.y);
             sf::Vector2f slideY = sf::Vector2f(currentPos.x, newPos.y);
             
@@ -387,7 +345,6 @@ private:
                 player_->setPosition(slideY);
                 actuallyMoved = true;
             }
-            // If both blocked, don't move
         }
         
         return actuallyMoved;

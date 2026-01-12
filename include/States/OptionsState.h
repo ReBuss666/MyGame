@@ -12,17 +12,6 @@
 #include <sstream>
 #include <iomanip>
 
-/**
- * @brief Options menu state for game settings
- * 
- * Features:
- * - Resolution selection
- * - Fullscreen toggle
- * - VSync toggle
- * - Mouse sensitivity slider
- * - Audio volume controls
- * - FOV adjustment
- */
 class OptionsState : public GameState {
 public:
     OptionsState() = default;
@@ -30,13 +19,11 @@ public:
     void onEnter() override {
         std::cout << "=== OptionsState: Entering ===" << std::endl;
 
-        // Load font
         font_ = ResourceManager::getInstance().getFont(Assets::FONT_PRIMARY);
         if (!font_) {
             font_ = ResourceManager::getInstance().getFont(Assets::FONT_FALLBACK_1);
         }
 
-        // Create title
         if (font_) {
             titleText_ = std::make_unique<sf::Text>(*font_);
             titleText_->setString("OPTIONS");
@@ -48,13 +35,10 @@ public:
             titleText_->setPosition({WINDOW_CENTER_X, 80.f});
         }
 
-        // Initialize current selection
         currentOption_ = 0;
         
-        // Setup options
         setupOptions();
 
-        // Create buttons
         float buttonY = WINDOW_HEIGHT - 100.f;
         applyButton_ = std::make_unique<Button>("Apply", sf::Vector2f(WINDOW_CENTER_X - 160.f, buttonY));
         backButton_ = std::make_unique<Button>("Back", sf::Vector2f(WINDOW_CENTER_X + 160.f, buttonY));
@@ -95,26 +79,21 @@ public:
     }
 
     void render(sf::RenderWindow& window) override {
-        // Dark background
         sf::RectangleShape background;
         background.setSize({static_cast<float>(window.getSize().x), 
                            static_cast<float>(window.getSize().y)});
         background.setFillColor(sf::Color(20, 20, 30));
         window.draw(background);
 
-        // Title
         if (titleText_) {
             window.draw(*titleText_);
         }
 
-        // Draw options panel
         drawOptionsPanel(window);
 
-        // Draw buttons
         if (applyButton_) applyButton_->render(window);
         if (backButton_) backButton_->render(window);
 
-        // Draw instructions
         drawInstructions(window);
     }
 
@@ -127,7 +106,6 @@ private:
     sf::Vector2f mousePos_;
     int currentOption_ = 0;
     
-    // Option data
     struct Option {
         std::string name;
         std::string value;
@@ -147,7 +125,6 @@ private:
 
         auto& settings = GameSettings::getInstance();
 
-        // Resolution
         Option resOption;
         resOption.name = "Resolution";
         resOption.type = Option::CHOICE;
@@ -158,21 +135,18 @@ private:
         resOption.value = resOption.choices[resOption.choiceIndex];
         options_.push_back(resOption);
 
-        // Fullscreen
         Option fsOption;
         fsOption.name = "Fullscreen";
         fsOption.type = Option::TOGGLE;
         fsOption.value = settings.isFullscreen() ? "ON" : "OFF";
         options_.push_back(fsOption);
 
-        // VSync
         Option vsOption;
         vsOption.name = "VSync";
         vsOption.type = Option::TOGGLE;
         vsOption.value = settings.isVSyncEnabled() ? "ON" : "OFF";
         options_.push_back(vsOption);
 
-        // FPS Limit
         Option fpsOption;
         fpsOption.name = "FPS Limit";
         fpsOption.type = Option::CHOICE;
@@ -187,7 +161,6 @@ private:
         fpsOption.value = std::to_string(fps);
         options_.push_back(fpsOption);
 
-        // Mouse Sensitivity
         Option sensOption;
         sensOption.name = "Mouse Sensitivity";
         sensOption.type = Option::SLIDER;
@@ -197,7 +170,6 @@ private:
         sensOption.value = ss.str();
         options_.push_back(sensOption);
 
-        // FOV
         Option fovOption;
         fovOption.name = "Field of View";
         fovOption.type = Option::SLIDER;
@@ -205,7 +177,6 @@ private:
         fovOption.value = std::to_string(static_cast<int>(fovOption.sliderValue)) + "°";
         options_.push_back(fovOption);
 
-        // Master Volume
         Option volOption;
         volOption.name = "Master Volume";
         volOption.type = Option::SLIDER;
@@ -213,7 +184,6 @@ private:
         volOption.value = std::to_string(static_cast<int>(volOption.sliderValue)) + "%";
         options_.push_back(volOption);
 
-        // Music Volume
         Option musicOption;
         musicOption.name = "Music Volume";
         musicOption.type = Option::SLIDER;
@@ -221,7 +191,6 @@ private:
         musicOption.value = std::to_string(static_cast<int>(musicOption.sliderValue)) + "%";
         options_.push_back(musicOption);
 
-        // Create text objects for each option
         if (font_) {
             float startY = 160.f;
             float spacing = 50.f;
@@ -279,7 +248,6 @@ private:
                                   % opt.choices.size();
                 opt.value = opt.choices[opt.choiceIndex];
                 
-                // Apply to settings
                 if (opt.name == "Resolution") {
                     settings.setResolutionByIndex(opt.choiceIndex);
                 } else if (opt.name == "FPS Limit") {
@@ -290,7 +258,6 @@ private:
             case Option::TOGGLE:
                 opt.value = (opt.value == "ON") ? "OFF" : "ON";
                 
-                // Apply to settings
                 if (opt.name == "Fullscreen") {
                     settings.setFullscreen(opt.value == "ON");
                 } else if (opt.name == "VSync") {
@@ -324,26 +291,22 @@ private:
                 break;
         }
 
-        // Update displayed value
         if (currentOption_ < static_cast<int>(optionValues_.size())) {
             optionValues_[currentOption_]->setString(opt.value);
         }
     }
 
     void handleMouseClick(sf::Vector2f pos) {
-        // Check Apply button
         if (applyButton_ && applyButton_->isClicked(pos)) {
             applySettings();
             return;
         }
 
-        // Check Back button
         if (backButton_ && backButton_->isClicked(pos)) {
             if (stateManager_) stateManager_->popState();
             return;
         }
 
-        // Check option clicks
         float startY = 160.f;
         float spacing = 50.f;
         float optionHeight = 40.f;
@@ -353,7 +316,6 @@ private:
             if (pos.y >= optY && pos.y <= optY + optionHeight) {
                 currentOption_ = static_cast<int>(i);
                 
-                // Left/right click areas for adjustment
                 if (pos.x > WINDOW_CENTER_X) {
                     if (pos.x < WINDOW_CENTER_X + 150.f) {
                         adjustOption(-1);
@@ -372,16 +334,12 @@ private:
         auto& settings = GameSettings::getInstance();
         settings.saveSettings();
         
-        // Apply to window if state manager has access
         if (stateManager_) {
-            // The window will be recreated in main.cpp
-            // For now, just mark as changed - main loop will handle it
             std::cout << "[OptionsState] Settings saved. Restart may be needed for some changes." << std::endl;
         }
     }
 
     void drawOptionsPanel(sf::RenderWindow& window) {
-        // Panel background
         sf::RectangleShape panel;
         float panelWidth = 700.f;
         float panelHeight = 60.f + options_.size() * 50.f;
@@ -392,9 +350,7 @@ private:
         panel.setOutlineThickness(2.f);
         window.draw(panel);
 
-        // Draw options
         for (size_t i = 0; i < options_.size(); ++i) {
-            // Highlight current option
             if (static_cast<int>(i) == currentOption_) {
                 sf::RectangleShape highlight;
                 highlight.setSize({panelWidth - 20.f, 40.f});
@@ -403,11 +359,9 @@ private:
                 window.draw(highlight);
             }
 
-            // Draw label and value
             if (i < optionLabels_.size()) window.draw(*optionLabels_[i]);
             if (i < optionValues_.size()) window.draw(*optionValues_[i]);
 
-            // Draw arrows for choice/slider options
             if (font_ && (options_[i].type == Option::CHOICE || options_[i].type == Option::SLIDER)) {
                 sf::Text leftArrow(*font_);
                 leftArrow.setString("<");
@@ -424,7 +378,6 @@ private:
                 window.draw(rightArrow);
             }
 
-            // Draw slider bar for slider options
             if (options_[i].type == Option::SLIDER) {
                 drawSlider(window, i);
             }
@@ -437,14 +390,12 @@ private:
         float sliderWidth = 160.f;
         float sliderHeight = 8.f;
 
-        // Background bar
         sf::RectangleShape bar;
         bar.setSize({sliderWidth, sliderHeight});
         bar.setPosition({sliderX, sliderY});
         bar.setFillColor(sf::Color(60, 60, 70));
         window.draw(bar);
 
-        // Calculate fill based on option
         float fillRatio = 0.f;
         const Option& opt = options_[optionIndex];
         if (opt.name == "Mouse Sensitivity") {
@@ -455,14 +406,12 @@ private:
             fillRatio = opt.sliderValue / 100.f;
         }
 
-        // Filled bar
         sf::RectangleShape fill;
         fill.setSize({sliderWidth * fillRatio, sliderHeight});
         fill.setPosition({sliderX, sliderY});
         fill.setFillColor(sf::Color(100, 180, 255));
         window.draw(fill);
 
-        // Slider knob
         sf::CircleShape knob(8.f);
         knob.setOrigin({8.f, 8.f});
         knob.setPosition({sliderX + sliderWidth * fillRatio, sliderY + sliderHeight / 2.f});

@@ -8,20 +8,10 @@
 #include <unordered_map>
 #include <iostream>
 
-/**
- * @brief SectorMap - container and manager for all sectors
- * 
- * Replaces the grid-based Map class with sector-based geometry.
- * Handles:
- * - Sector storage and lookup
- * - Finding which sector contains a point
- * - 2D debug rendering
- */
 class SectorMap {
 public:
     SectorMap() = default;
 
-    // Sector management
     void addSector(const Sector& sector) {
         int id = sector.getId();
         sectors_[id] = sector;
@@ -44,7 +34,6 @@ public:
         return sectors_.size();
     }
 
-    // Get all sectors
     std::unordered_map<int, Sector>& getSectors() {
         return sectors_;
     }
@@ -53,19 +42,13 @@ public:
         return sectors_;
     }
 
-    /**
-     * @brief Find which sector contains a point
-     * 
-     * Iterates through all sectors and checks containment.
-     * TODO: Optimize with spatial partitioning (quadtree, BSP)
-     */
     Sector* findSectorAt(sf::Vector2f point) {
         for (auto& [id, sector] : sectors_) {
             if (sector.containsPoint(point)) {
                 return &sector;
             }
         }
-        return nullptr; // Point is outside all sectors
+        return nullptr;
     }
 
     const Sector* findSectorAt(sf::Vector2f point) const {
@@ -77,79 +60,54 @@ public:
         return nullptr;
     }
 
-    /**
-     * @brief Check if movement from A to B crosses any solid walls
-     * 
-     * Returns true if blocked, false if clear.
-     * Used for collision detection.
-     */
     bool isBlocked(sf::Vector2f from, sf::Vector2f to, float radius = 0.3f, bool isJumping = false) const {
-        // Get sector at start point
         const Sector* startSector = findSectorAt(from);
         
         if (!startSector) {
-            return true; // Outside valid area
+            return true;
         }
 
-        // Check all walls in current sector
         for (const auto& wall : startSector->getWalls()) {
-            // Check if destination point is too close to wall
             sf::Vector2f closest = wall.closestPoint(to);
             sf::Vector2f delta = to - closest;
             float distSquared = delta.x * delta.x + delta.y * delta.y;
             
             if (distSquared < radius * radius) {
-                // We're too close to this wall
                 if (wall.isSolid()) {
-                    return true; // Solid wall blocks movement
+                    return true;
                 }
-                // Portal wall - check step height
                 if (wall.isPortal()) {
                     Sector* neighbor = wall.getNeighborSector();
                     if (neighbor) {
                         float heightDiff = neighbor->getFloorHeight() - startSector->getFloorHeight();
-                        // Block if step is too high and player is not jumping
                         if (heightDiff > MAX_STEP_HEIGHT && !isJumping) {
-                            return true; // Step too high - need to jump
+                            return true;
                         }
                     }
                 }
             }
         }
         
-        // Check if destination is in a valid sector
         const Sector* endSector = findSectorAt(to);
         if (!endSector) {
-            return true; // Moving outside all sectors
+            return true;
         }
         
-        // Also check step height when crossing into new sector
         if (endSector != startSector) {
             float heightDiff = endSector->getFloorHeight() - startSector->getFloorHeight();
             if (heightDiff > MAX_STEP_HEIGHT && !isJumping) {
-                return true; // Step too high - need to jump
+                return true;
             }
         }
         
-        return false; // Movement is allowed
+        return false;
     }
 
-    /**
-     * @brief Clear all sectors
-     */
     void clear() {
         sectors_.clear();
         std::cout << "[SectorMap] Cleared all sectors" << std::endl;
     }
 
-    /**
-     * @brief Validate entire map
-     * 
-     * Checks:
-     * - All sectors are valid
-     * - Portal connections are bidirectional
-     * - No orphaned sectors
-     */
     bool validate() const {
         std::cout << "[SectorMap] Validating map..." << std::endl;
 
@@ -167,9 +125,6 @@ public:
                         std::cerr << "[SectorMap] ERROR: Portal with null neighbor in sector " << id << std::endl;
                         return false;
                     }
-
-                    // Check if neighbor has reciprocal portal
-                    // (This is optional - one-way portals can be valid)
                 }
             }
         }
@@ -178,14 +133,8 @@ public:
         return true;
     }
 
-    /**
-     * @brief Render sectors in 2D (top-down view)
-     * 
-     * Used for debugging and 2D mode.
-     */
     void render2D(sf::RenderWindow& window, sf::Vector2f cameraPos, float zoom = 1.0f) const {
         for (const auto& [id, sector] : sectors_) {
-            // Render sector bounds
             sf::FloatRect bounds = sector.getBounds();
             sf::RectangleShape boundsShape;
             boundsShape.setSize({bounds.size.x, bounds.size.y});
@@ -195,7 +144,6 @@ public:
             boundsShape.setOutlineThickness(1.0f);
             window.draw(boundsShape);
 
-            // Render walls
             for (const auto& wall : sector.getWalls()) {
                 sf::Color wallColor = wall.isSolid() ? sf::Color::Red : sf::Color::Green;
                 
@@ -205,7 +153,6 @@ public:
                 };
                 window.draw(line, 2, sf::PrimitiveType::Lines);
 
-                // Draw normal (for debugging)
                 sf::Vector2f mid = (wall.getStart() + wall.getEnd()) / 2.0f;
                 sf::Vector2f normal = wall.getNormal() * 10.0f;
                 sf::Vertex normalLine[] = {
@@ -214,18 +161,11 @@ public:
                 };
                 window.draw(normalLine, 2, sf::PrimitiveType::Lines);
             }
-
-            // Draw sector ID
-            // (Need font for this - skip for now)
         }
     }
 
-    /**
-     * @brief Get bounding box of entire map
-     */
     sf::FloatRect getBounds() const {
         if (sectors_.empty()) {
-            // SFML 3.0: FloatRect({position}, {size})
             return sf::FloatRect({0.0f, 0.0f}, {0.0f, 0.0f});
         }
 
@@ -249,25 +189,17 @@ public:
             }
         }
 
-        // SFML 3.0: FloatRect({position}, {size})
         return sf::FloatRect({minX, minY}, {maxX - minX, maxY - minY});
     }
 
 private:
     std::unordered_map<int, Sector> sectors_;
 
-    /**
-     * @brief Check if line segment intersects circle
-     * 
-     * Used for collision detection against walls.
-     */
     bool lineSegmentIntersectsCircle(const Wall& wall, sf::Vector2f lineStart, 
                                      sf::Vector2f lineEnd, float radius) const {
-        // Find closest point on wall to line segment
         sf::Vector2f lineMid = (lineStart + lineEnd) / 2.0f;
         sf::Vector2f closest = wall.closestPoint(lineMid);
         
-        // Check distance
         sf::Vector2f delta = closest - lineMid;
         float distSquared = delta.x * delta.x + delta.y * delta.y;
         
