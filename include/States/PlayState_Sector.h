@@ -1,7 +1,7 @@
 #pragma once
 #include "../Core/GameState.h"
 #include "../World/SectorMap.h"
-#include "../World/TestMapBuilder.h"
+#include "../World/MapLoader.h"
 #include "../Core/StateManager.h"
 #include "../Core/ResourceManager.h"
 #include "../Utils/settings.h"
@@ -15,7 +15,8 @@
 
 class PlayState : public GameState {
 public:
-    PlayState() = default; 
+    // Constructor requires map file path
+    explicit PlayState(const std::string& mapPath) : mapFilePath_(mapPath) {} 
 
     void onEnter() override {
         std::cout << "=== PlayState (Sector Engine): Entering ===" << std::endl;
@@ -27,15 +28,28 @@ public:
         
         renderSprite_ = std::make_unique<sf::Sprite>(renderTexture_.getTexture());
 
-        std::cout << "[PlayState] Building sector map..." << std::endl;
-        sectorMap_ = TestMapBuilder::buildSimpleStepMap();
+        std::cout << "[PlayState] Loading sector map..." << std::endl;
+        
+        // Load map from JSON file (scale = 1.0, coordinates already in game units)
+        auto result = MapLoader::loadFromFile(mapFilePath_, sectorMap_, 1.0f);
+        if (!result.success) {
+            std::cerr << "ERROR: Failed to load map: " << result.error << std::endl;
+        } else {
+            std::cout << "[PlayState] Loaded map from: " << mapFilePath_ << std::endl;
+            mapTextures_ = result.textureList;
+        }
         
         if (!sectorMap_.validate()) {
             std::cerr << "ERROR: Sector map validation failed!" << std::endl;
         }
 
-        const float UNIT = 64.0f;
-        player_ = std::make_unique<Player>(sf::Vector2f(2.0f * UNIT, 2.0f * UNIT));
+        // Spawn player in center of first sector, or at default position
+        sf::Vector2f spawnPos(128.0f, 128.0f); // Default spawn
+        if (Sector* firstSector = sectorMap_.getSector(1)) {
+            spawnPos = firstSector->getCenter();
+            std::cout << "[PlayState] Spawning at sector 1 center: " << spawnPos.x << ", " << spawnPos.y << std::endl;
+        }
+        player_ = std::make_unique<Player>(spawnPos);
         
         updatePlayerSector();
         
@@ -232,6 +246,14 @@ public:
             }
             drawCrosshair(window);
         } else {
+            // 2D mode - set camera view centered on player
+            sf::View mapView;
+            sf::Vector2f playerPos = player_->getPosition();
+            float viewSize = 800.0f; // How much of the map to show
+            mapView.setCenter(playerPos);
+            mapView.setSize({viewSize, viewSize * (float)window.getSize().y / (float)window.getSize().x});
+            window.setView(mapView);
+            
             sectorMap_.render2D(window, player_->getPosition(), 1.0f);
             
             if (player_) {
@@ -249,6 +271,9 @@ public:
                 highlight.setOutlineThickness(2.0f);
                 window.draw(highlight);
             }
+            
+            // Reset view for HUD
+            window.setView(window.getDefaultView());
         }
         
         drawHUD(window);
@@ -264,6 +289,10 @@ private:
     std::unique_ptr<sf::Sprite> renderSprite_;
     
     sf::Texture* wallTexture_ = nullptr;
+    
+    // Map loading
+    std::string mapFilePath_;
+    std::vector<std::string> mapTextures_;
     sf::RenderWindow* window_ = nullptr;
 
     bool mode3D_ = true;

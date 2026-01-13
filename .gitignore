@@ -25,6 +25,7 @@ build/
 bin/
 cmake-build-*/
 out/
+assets/maps
 
 # IDE and Editor files
 .vscode/

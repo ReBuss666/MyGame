@@ -23,6 +23,43 @@ public:
         std::cout << "[StateManager] Registered state: " << name << std::endl;
     }
 
+    // Register state with string parameter (e.g., map path)
+    template<typename T>
+    void registerStateWithParam(const std::string& name, const std::string& param) {
+        stateFactories_[name] = [param]() -> std::unique_ptr<GameState> {
+            return std::make_unique<T>(param);
+        };
+        std::cout << "[StateManager] Registered state with param: " << name << std::endl;
+    }
+
+    // Set/update map path for Play state
+    void setMapPath(const std::string& path) {
+        currentMapPath_ = path;
+    }
+
+    const std::string& getMapPath() const {
+        return currentMapPath_;
+    }
+
+    // Generic switch with parameter
+    template<typename T>
+    void switchToWithParam(const std::string& stateName, const std::string& param) {
+        std::cout << "[StateManager] Switching to: " << stateName << " with param: " << param << std::endl;
+        
+        while (!states_.empty()) {
+            states_.top()->onExit();
+            states_.pop();
+        }
+
+        auto newState = std::make_unique<T>(param);
+        if (newState) {
+            newState->stateManager_ = this;
+            newState->onEnter();
+            states_.push(std::move(newState));
+            std::cout << "[StateManager] Switch complete" << std::endl;
+        }
+    }
+
     void exitGame() {
         std::cout << "[StateManager] Closing game..." << std::endl;
         if (window_) {
@@ -120,6 +157,7 @@ private:
     std::stack<std::unique_ptr<GameState>> states_;
     std::unordered_map<std::string, std::function<std::unique_ptr<GameState>()>> stateFactories_;
     sf::RenderWindow* window_;
+    std::string currentMapPath_;
 
     std::unique_ptr<GameState> createState(const std::string& name) {
         auto it = stateFactories_.find(name);
