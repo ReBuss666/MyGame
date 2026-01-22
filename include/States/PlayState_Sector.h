@@ -47,7 +47,7 @@ public:
         sf::Vector2f spawnPos(128.0f, 128.0f); // Default spawn
         if (Sector* firstSector = sectorMap_.getSector(1)) {
             spawnPos = firstSector->getCenter();
-            std::cout << "[PlayState] Spawning at sector 1 center: " << spawnPos.x << ", " << spawnPos.y << std::endl;
+            std::cout << "[PlayState] Spawning at sector 0 center: " << spawnPos.x << ", " << spawnPos.y << std::endl;
         }
         player_ = std::make_unique<Player>(spawnPos);
         

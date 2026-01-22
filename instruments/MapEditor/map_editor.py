@@ -827,6 +827,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.mode_line = False    # Line/rectangle drawing mode
         self.mode_marquee = False  # Marquee selection mode
         self.mode_split = False  # Split tool mode
+        self.mode_stairs = False  # Stairs drawing mode
         self.grabbed_vertex_index: Optional[int] = None
         self.grab_origin: Optional[Point] = None  # For angle snapping reference
         self.grab_mode_type: str = "vertex"  # "vertex", "sector", "multi"
@@ -842,6 +843,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.textures: List[str] = ["brick.png", "stone.png", "metal.png", "wood.png", "concrete.png"]
         self.selected_vertices: List[Tuple[SectorData, int]] = []  # List of (sector, vertex_index)
         self.circle_segments = 16  # Number of segments for circle
+        self.marquee_start: Optional[Point] = None  # For marquee selection
+        self.marquee_current: Optional[Point] = None
         self._build_ui()
         self._connect_signals()
         self._refresh_scene()
@@ -892,6 +895,21 @@ class MainWindow(QtWidgets.QMainWindow):
         self.circle_segments_spin.setFixedWidth(70)
         toolbar.addWidget(self.circle_segments_spin)
         toolbar.addSeparator()
+        # Stairs controls
+        toolbar.addWidget(QtWidgets.QLabel(" Steps: "))
+        self.stairs_steps_spin = QtWidgets.QSpinBox()
+        self.stairs_steps_spin.setRange(2, 20)
+        self.stairs_steps_spin.setValue(5)
+        self.stairs_steps_spin.setFixedWidth(70)
+        toolbar.addWidget(self.stairs_steps_spin)
+        toolbar.addWidget(QtWidgets.QLabel(" Height: "))
+        self.step_height_spin = QtWidgets.QDoubleSpinBox()
+        self.step_height_spin.setRange(0.1, 2.0)
+        self.step_height_spin.setDecimals(1)
+        self.step_height_spin.setValue(0.2)
+        self.step_height_spin.setFixedWidth(70)
+        toolbar.addWidget(self.step_height_spin)
+        toolbar.addSeparator()
         self.action_grab = toolbar.addAction("Grab")
         self.action_grab.setShortcut(QtGui.QKeySequence("G"))
         self.action_scale = toolbar.addAction("Scale")
@@ -916,6 +934,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.action_split = toolbar.addAction("Split")
         self.action_split.setShortcut(QtGui.QKeySequence("P"))
         self.action_split.setCheckable(True)
+        self.action_stairs = toolbar.addAction("Stairs")
+        self.action_stairs.setShortcut(QtGui.QKeySequence("T"))
+        self.action_stairs.setCheckable(True)
         self._set_mode_draw(False)
 
     def _connect_signals(self):
@@ -941,6 +962,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.action_load.triggered.connect(self._load_map)
         self.action_save.triggered.connect(self._save_map)
         self.action_split.triggered.connect(lambda: self._set_mode("split"))
+        self.action_stairs.triggered.connect(lambda: self._set_mode("stairs"))
 
     # Mode handling
     def _set_mode(self, mode: str):
@@ -950,6 +972,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.mode_line = (mode == "line")
         self.mode_marquee = (mode == "marquee")
         self.mode_split = (mode == "split")
+        self.mode_stairs = (mode == "stairs")
         self.scale_mode = (mode == "scale")
         self.action_draw.setChecked(self.mode_draw)
         self.action_select.setChecked(mode == "select")
@@ -957,6 +980,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.action_line.setChecked(self.mode_line)
         self.action_marquee.setChecked(self.mode_marquee)
         self.action_split.setChecked(self.mode_split)
+        self.action_stairs.setChecked(self.mode_stairs)
         self.action_grab.setChecked(self.mode_grab)
         self.action_scale.setChecked(self.scale_mode)
         if not self.mode_draw:
@@ -992,6 +1016,11 @@ class MainWindow(QtWidgets.QMainWindow):
                     self._delete_sector_at(pos)
             self._refresh_scene()
         elif self.mode_circle or self.mode_line:
+            if button == QtCore.Qt.LeftButton:
+                self.drag_start = pos
+                self.drag_current = pos
+            self._refresh_scene()
+        elif self.mode_stairs:
             if button == QtCore.Qt.LeftButton:
                 self.drag_start = pos
                 self.drag_current = pos
@@ -1104,6 +1133,12 @@ class MainWindow(QtWidgets.QMainWindow):
                     pos = snap_to_angle(self.drag_start, pos)
                 self.drag_current = pos
                 self._refresh_scene()
+        elif self.mode_stairs:
+            if self.drag_start:
+                if shift_held:
+                    pos = snap_to_angle(self.drag_start, pos)
+                self.drag_current = pos
+                self._refresh_scene()
         elif self.mode_marquee and self.marquee_start:
             self.marquee_current = pos
             self._refresh_scene()
@@ -1143,6 +1178,11 @@ class MainWindow(QtWidgets.QMainWindow):
             self._refresh_scene()
         elif self.mode_line and self.drag_start and self.drag_current:
             self._create_line_sector()
+            self.drag_start = None
+            self.drag_current = None
+            self._refresh_scene()
+        elif self.mode_stairs and self.drag_start and self.drag_current:
+            self._create_stairs_sector()
             self.drag_start = None
             self.drag_current = None
             self._refresh_scene()
@@ -1235,9 +1275,9 @@ class MainWindow(QtWidgets.QMainWindow):
         # Create rectangle vertices
         vertices = [
             (x1 + px, y1 + py),  # Top-left
-            (x2 + px, y2 + py),  # Top-right
-            (x2 - px, y2 - py),  # Bottom-right
             (x1 - px, y1 - py),  # Bottom-left
+            (x2 - px, y2 - py),  # Bottom-right
+            (x2 + px, y2 + py),  # Top-right
         ]
         
         next_id = 0 if not self.sectors else max(s.sector_id for s in self.sectors) + 1
@@ -1250,6 +1290,74 @@ class MainWindow(QtWidgets.QMainWindow):
         sector = SectorData(sector_id=next_id, walls=walls)
         self.sectors.append(sector)
         self._select_sector(sector)
+
+    def _create_stairs_sector(self):
+        """Create a series of rectangular sectors as stairs along the drag line."""
+        if not self.drag_start or not self.drag_current:
+            return
+        x1, y1 = self.drag_start
+        x2, y2 = self.drag_current
+        
+        length = math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
+        if length < 10:  # Minimum size
+            return
+        
+        # Parameters
+        thickness = 16.0
+        num_steps = self.stairs_steps_spin.value()
+        step_height = self.step_height_spin.value()
+        
+        # Calculate perpendicular offset
+        dx = x2 - x1
+        dy = y2 - y1
+        px = -dy / length * (thickness / 2)
+        py = dx / length * (thickness / 2)
+        
+        next_id = 0 if not self.sectors else max(s.sector_id for s in self.sectors) + 1
+        
+        for i in range(num_steps):
+            # Position along the line
+            t1 = i / num_steps
+            t2 = (i + 1) / num_steps
+            start_x = x1 + t1 * dx
+            start_y = y1 + t1 * dy
+            end_x = x1 + t2 * dx
+            end_y = y1 + t2 * dy
+            
+            # Vertices for this step
+            vertices = [
+                (start_x + px, start_y + py),
+                (start_x - px, start_y - py),
+                (end_x - px, end_y - py),
+                (end_x + px, end_y + py),
+            ]
+            
+            walls = []
+            for j in range(len(vertices)):
+                wall = WallData(start=vertices[j], end=vertices[(j + 1) % len(vertices)])
+                wall.middle_texture = self.textures[2] if len(self.textures) > 2 else self.textures[0] if self.textures else ""
+                if j == 1 or j == 3:  # Side walls
+                    wall.flags = 1  # Blocking
+                walls.append(wall)
+            
+            floor_h = i * step_height
+            sector = SectorData(
+                sector_id=next_id + i, 
+                walls=walls, 
+                floor_height=floor_h,
+                ceiling_height=5.0,
+                floor_texture=self.textures[0] if self.textures else "",
+                ceiling_texture=self.textures[1] if len(self.textures) > 1 else ""
+            )
+            self.sectors.append(sector)
+            
+            # Set neighbors: connect to previous and next step
+            if i > 0:
+                sector.walls[0].neighbor_id = next_id + i - 1  # Wall 0 is the "start" wall, connects to previous
+            if i < num_steps - 1:
+                sector.walls[2].neighbor_id = next_id + i + 1  # Wall 2 is the "end" wall, connects to next
+        
+        self._select_sector(self.sectors[-1])
 
     def _find_vertex_at(self, pos: Point, threshold: float = 15.0):
         """Find a vertex near the given position. Returns (sector, vertex_index) or None."""
@@ -1902,7 +2010,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self._draw_preview()
         
         # Draw circle/line preview while dragging
-        if (self.mode_circle or self.mode_line) and self.drag_start and self.drag_current:
+        if (self.mode_circle or self.mode_line or self.mode_stairs) and self.drag_start and self.drag_current:
             self._draw_shape_preview()
         
         # Draw marquee selection rectangle
@@ -2083,9 +2191,9 @@ class MainWindow(QtWidgets.QMainWindow):
             # Create preview rectangle
             polygon = QtGui.QPolygonF([
                 QtCore.QPointF(x1 + px, y1 + py),
-                QtCore.QPointF(x2 + px, y2 + py),
-                QtCore.QPointF(x2 - px, y2 - py),
                 QtCore.QPointF(x1 - px, y1 - py),
+                QtCore.QPointF(x2 - px, y2 - py),
+                QtCore.QPointF(x2 + px, y2 + py),
             ])
             self.scene.addPolygon(polygon, pen, brush)
             
@@ -2093,6 +2201,43 @@ class MainWindow(QtWidgets.QMainWindow):
             center_pen = QtGui.QPen(QtGui.QColor(255, 255, 0))
             center_pen.setWidth(1)
             self.scene.addLine(x1, y1, x2, y2, center_pen)
+            
+        elif self.mode_stairs:
+            x1, y1 = self.drag_start
+            x2, y2 = self.drag_current
+            
+            length = math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
+            if length < 1:
+                return
+            
+            thickness = 64.0
+            num_steps = self.stairs_steps_spin.value()
+            dx = x2 - x1
+            dy = y2 - y1
+            px = -dy / length * (thickness / 2)
+            py = dx / length * (thickness / 2)
+            
+            # Draw each step preview
+            for i in range(num_steps):
+                t1 = i / num_steps
+                t2 = (i + 1) / num_steps
+                start_x = x1 + t1 * dx
+                start_y = y1 + t1 * dy
+                end_x = x1 + t2 * dx
+                end_y = y1 + t2 * dy
+                
+                polygon = QtGui.QPolygonF([
+                    QtCore.QPointF(start_x + px, start_y + py),
+                    QtCore.QPointF(start_x - px, start_y - py),
+                    QtCore.QPointF(end_x - px, end_y - py),
+                    QtCore.QPointF(end_x + px, end_y + py),
+                ])
+                self.scene.addPolygon(polygon, pen, brush)
+                
+                # Draw center line for each step
+                center_pen = QtGui.QPen(QtGui.QColor(255, 255, 0))
+                center_pen.setWidth(1)
+                self.scene.addLine(start_x, start_y, end_x, end_y, center_pen)
 
     def _draw_marquee_preview(self):
         """Draw the marquee selection rectangle."""
