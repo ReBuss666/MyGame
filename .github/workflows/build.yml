@@ -28,7 +28,7 @@ jobs:
         g++ -c -std=c++17 -O2 -Wall -Iinclude src/Rendering/FireEffect.cpp -o build/FireEffect.o
         g++ -c -std=c++17 -O2 -Wall -Iinclude src/Rendering/SectorRenderer.cpp -o build/SectorRenderer.o
         g++ -c -std=c++17 -O2 -Wall -Iinclude src/States/MenuState.cpp -o build/MenuState.o
-        g++ -o build/MyGame build/main.o build/FireEffect.o build/SectorRenderer.o build/MenuState.o \
+        g++ -o MyGame build/main.o build/FireEffect.o build/SectorRenderer.o build/MenuState.o \
             -lsfml-graphics -lsfml-window -lsfml-audio -lsfml-network -lsfml-system
     
     - name: Run tests
@@ -41,7 +41,7 @@ jobs:
       with:
         name: MyGame-Linux
         path: |
-          build/MyGame
+          MyGame
           assets/
           settings.cfg
         retention-days: 90
@@ -61,20 +61,25 @@ jobs:
       uses: actions/cache@v4
       with:
         path: C:\SFML
-        key: sfml-3.0-windows-msvc
+        key: sfml-3.0-windows-msvc-v2
     
     - name: Download and setup SFML 3
       if: steps.cache-sfml.outputs.cache-hit != 'true'
       shell: powershell
       run: |
-        # Клонируем SFML 3 из GitHub
-        git clone --depth 1 --branch 3.0.0 https://github.com/SFML/SFML.git C:\SFML-src
+        # Клонируем SFML 3 из GitHub (master ветка содержит SFML 3)
+        git clone --depth 1 --branch master https://github.com/SFML/SFML.git C:\SFML-src
         
         # Собираем SFML
         mkdir C:\SFML-build
         cd C:\SFML-build
-        cmake -G "Visual Studio 17 2022" -A x64 -DCMAKE_INSTALL_PREFIX=C:\SFML C:\SFML-src
-        cmake --build . --config Release
+        cmake -G "Visual Studio 17 2022" -A x64 `
+          -DCMAKE_INSTALL_PREFIX=C:\SFML `
+          -DBUILD_SHARED_LIBS=TRUE `
+          -DSFML_BUILD_EXAMPLES=FALSE `
+          -DSFML_BUILD_DOC=FALSE `
+          C:\SFML-src
+        cmake --build . --config Release --parallel
         cmake --install . --config Release
     
     - name: Build project
@@ -84,23 +89,24 @@ jobs:
         
         mkdir build 2>nul || echo Build dir exists
         
-        cl /c /EHsc /std:c++17 /O2 /Iinclude src\main.cpp /Fo:build\main.obj /IC:\SFML\include
-        cl /c /EHsc /std:c++17 /O2 /Iinclude src\Rendering\FireEffect.cpp /Fo:build\FireEffect.obj /IC:\SFML\include
-        cl /c /EHsc /std:c++17 /O2 /Iinclude src\Rendering\SectorRenderer.cpp /Fo:build\SectorRenderer.obj /IC:\SFML\include
-        cl /c /EHsc /std:c++17 /O2 /Iinclude src\States\MenuState.cpp /Fo:build\MenuState.obj /IC:\SFML\include
+        cl /c /EHsc /std:c++17 /O2 /Iinclude /IC:\SFML\include src\main.cpp /Fo:build\main.obj
+        cl /c /EHsc /std:c++17 /O2 /Iinclude /IC:\SFML\include src\Rendering\FireEffect.cpp /Fo:build\FireEffect.obj
+        cl /c /EHsc /std:c++17 /O2 /Iinclude /IC:\SFML\include src\Rendering\SectorRenderer.cpp /Fo:build\SectorRenderer.obj
+        cl /c /EHsc /std:c++17 /O2 /Iinclude /IC:\SFML\include src\States\MenuState.cpp /Fo:build\MenuState.obj
         
-        link /OUT:build\MyGame.exe ^
+        link /OUT:MyGame.exe ^
            build\main.obj ^
            build\FireEffect.obj ^
            build\SectorRenderer.obj ^
            build\MenuState.obj ^
            /LIBPATH:C:\SFML\lib ^
-           sfml-graphics.lib sfml-window.lib sfml-audio.lib sfml-network.lib sfml-system.lib
+           sfml-graphics-3.lib sfml-window-3.lib sfml-audio-3.lib sfml-network-3.lib sfml-system-3.lib ^
+           opengl32.lib winmm.lib gdi32.lib
     
     - name: Copy SFML DLLs
       shell: powershell
       run: |
-        Copy-Item C:\SFML\bin\*.dll .
+        Copy-Item C:\SFML\bin\*.dll . -Force
     
     - name: Run tests
       run: |
@@ -111,8 +117,8 @@ jobs:
       with:
         name: MyGame-Windows
         path: |
-          build/MyGame.exe
-          C:/SFML/bin/*.dll
+          MyGame.exe
+          *.dll
           assets/
           settings.cfg
         retention-days: 90
