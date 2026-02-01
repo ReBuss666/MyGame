@@ -1,0 +1,127 @@
+{
+  "sectors": [
+    {
+      "id": 0,
+      "floorHeight": 0.0,
+      "ceilingHeight": 3.0,
+      "lightLevel": 255,
+      "floorTexture": "wood.png",
+      "ceilingTexture": "wood.png",
+      "flags": 0,
+      "walls": [
+        {
+          "start": [
+            -14.0,
+            -254.0
+          ],
+          "end": [
+            -209.0,
+            61.0
+          ],
+          "neighborId": null,
+          "upperTexture": "",
+          "middleTexture": "",
+          "lowerTexture": "",
+          "flags": 0
+        },
+        {
+          "start": [
+            -209.0,
+            61.0
+          ],
+          "end": [
+            307.0,
+            374.0
+          ],
+          "neighborId": null,
+          "upperTexture": "",
+          "middleTexture": "",
+          "lowerTexture": "",
+          "flags": 0
+        },
+        {
+          "start": [
+            307.0,
+            374.0
+          ],
+          "end": [
+            642.0,
+            117.0
+          ],
+          "neighborId": null,
+          "upperTexture": "",
+          "middleTexture": "",
+          "lowerTexture": "",
+          "flags": 0
+        },
+        {
+          "start": [
+            642.0,
+            117.0
+          ],
+          "end": [
+            371.0,
+            -119.0
+          ],
+          "neighborId": null,
+          "upperTexture": "",
+          "middleTexture": "",
+          "lowerTexture": "",
+          "flags": 0
+        },
+        {
+          "start": [
+            371.0,
+            -119.0
+          ],
+          "end": [
+            220.0,
+            -233.0
+          ],
+          "neighborId": null,
+          "upperTexture": "",
+          "middleTexture": "",
+          "lowerTexture": "",
+          "flags": 0
+        },
+        {
+          "start": [
+            220.0,
+            -233.0
+          ],
+          "end": [
+            -15.0,
+            -254.0
+          ],
+          "neighborId": null,
+          "upperTexture": "",
+          "middleTexture": "",
+          "lowerTexture": "",
+          "flags": 0
+        },
+        {
+          "start": [
+            -15.0,
+            -254.0
+          ],
+          "end": [
+            -14.0,
+            -254.0
+          ],
+          "neighborId": null,
+          "upperTexture": "",
+          "middleTexture": "",
+          "lowerTexture": "",
+          "flags": 0
+        }
+      ]
+    }
+  ],
+  "textures": [
+    "brick.png",
+    "stone.png",
+    "metal.png",
+    "wood.png",
+    "concrete.png"
+  ]
+}

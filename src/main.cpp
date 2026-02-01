@@ -31,12 +31,9 @@ int main() {
     stateManager.setWindow(&window);
     
     stateManager.registerState<MenuState>("Menu");
-    stateManager.registerStateWithParam<PlayState>("Play", "../assets/maps/test.json");
+    stateManager.registerStateWithParam<PlayState>("Play", "assets/maps/simple_step.json");
     stateManager.registerState<PauseState>("Pause");
     stateManager.registerState<OptionsState>("Options");
-    
-    // Set default map path
-    stateManager.setMapPath("../assets/maps/test.json");
     
     stateManager.pushState("Menu");
     

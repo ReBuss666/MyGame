@@ -1,0 +1,118 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [ main, master, feature/* ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Update system and install dependencies
+      run: |
+        pacman -Syu --noconfirm
+        pacman -S --noconfirm base-devel gcc git sfml
+    
+    - name: Build project
+      run: |
+        mkdir -p build
+        g++ -c -std=c++17 -O2 -Wall -Iinclude src/main.cpp -o build/main.o
+        g++ -c -std=c++17 -O2 -Wall -Iinclude src/Rendering/FireEffect.cpp -o build/FireEffect.o
+        g++ -c -std=c++17 -O2 -Wall -Iinclude src/Rendering/SectorRenderer.cpp -o build/SectorRenderer.o
+        g++ -c -std=c++17 -O2 -Wall -Iinclude src/States/MenuState.cpp -o build/MenuState.o
+        g++ -o build/MyGame build/main.o build/FireEffect.o build/SectorRenderer.o build/MenuState.o \
+            -lsfml-graphics -lsfml-window -lsfml-audio -lsfml-network -lsfml-system
+    
+    - name: Run tests
+      run: |
+        # Добавьте здесь команды для запуска тестов
+        echo "Tests would run here"
+    
+    - name: Upload Linux artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: MyGame-Linux
+        path: |
+          build/MyGame
+          assets/
+          settings.cfg
+        retention-days: 90
+
+  build-windows:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup MSVC
+      uses: microsoft/setup-msbuild@v2
+    
+    - name: Cache SFML
+      id: cache-sfml
+      uses: actions/cache@v4
+      with:
+        path: C:\SFML
+        key: sfml-3.0-windows-msvc
+    
+    - name: Download and setup SFML 3
+      if: steps.cache-sfml.outputs.cache-hit != 'true'
+      shell: powershell
+      run: |
+        # Клонируем SFML 3 из GitHub
+        git clone --depth 1 --branch 3.0.0 https://github.com/SFML/SFML.git C:\SFML-src
+        
+        # Собираем SFML
+        mkdir C:\SFML-build
+        cd C:\SFML-build
+        cmake -G "Visual Studio 17 2022" -A x64 -DCMAKE_INSTALL_PREFIX=C:\SFML C:\SFML-src
+        cmake --build . --config Release
+        cmake --install . --config Release
+    
+    - name: Build project
+      shell: cmd
+      run: |
+        call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+        
+        mkdir build 2>nul || echo Build dir exists
+        
+        cl /c /EHsc /std:c++17 /O2 /Iinclude src\main.cpp /Fo:build\main.obj /IC:\SFML\include
+        cl /c /EHsc /std:c++17 /O2 /Iinclude src\Rendering\FireEffect.cpp /Fo:build\FireEffect.obj /IC:\SFML\include
+        cl /c /EHsc /std:c++17 /O2 /Iinclude src\Rendering\SectorRenderer.cpp /Fo:build\SectorRenderer.obj /IC:\SFML\include
+        cl /c /EHsc /std:c++17 /O2 /Iinclude src\States\MenuState.cpp /Fo:build\MenuState.obj /IC:\SFML\include
+        
+        link /OUT:build\MyGame.exe ^
+           build\main.obj ^
+           build\FireEffect.obj ^
+           build\SectorRenderer.obj ^
+           build\MenuState.obj ^
+           /LIBPATH:C:\SFML\lib ^
+           sfml-graphics.lib sfml-window.lib sfml-audio.lib sfml-network.lib sfml-system.lib
+    
+    - name: Copy SFML DLLs
+      shell: powershell
+      run: |
+        Copy-Item C:\SFML\bin\*.dll .
+    
+    - name: Run tests
+      run: |
+        echo "Tests would run here"
+    
+    - name: Upload Windows artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: MyGame-Windows
+        path: |
+          build/MyGame.exe
+          C:/SFML/bin/*.dll
+          assets/
+          settings.cfg
+        retention-days: 90

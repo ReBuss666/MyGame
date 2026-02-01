@@ -25,9 +25,11 @@ public:
 
     // Register state with string parameter (e.g., map path)
     template<typename T>
-    void registerStateWithParam(const std::string& name, const std::string& param) {
-        stateFactories_[name] = [param]() -> std::unique_ptr<GameState> {
-            return std::make_unique<T>(param);
+    void registerStateWithParam(const std::string& name, const std::string& defaultParam) {
+        stateFactories_[name] = [this, defaultParam]() -> std::unique_ptr<GameState> {
+            // Use currentMapPath_ if set, otherwise use defaultParam
+            const std::string& pathToUse = currentMapPath_.empty() ? defaultParam : currentMapPath_;
+            return std::make_unique<T>(pathToUse);
         };
         std::cout << "[StateManager] Registered state with param: " << name << std::endl;
     }

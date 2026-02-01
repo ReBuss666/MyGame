@@ -28,6 +28,37 @@ void SectorRenderer::setRenderDistance(float distance) {
     renderDistance_ = distance;
 }
 
+const sf::Texture* SectorRenderer::getTextureByName(const std::string& textureName) const {
+    if (textureName.empty()) {
+        std::cout << "[Texture] Empty texture name, using default wallTexture_" << std::endl;
+        return wallTexture_;  // Use default if no texture specified
+    }
+    
+    // Check cache first
+    auto it = textureCache_.find(textureName);
+    if (it != textureCache_.end()) {
+        std::cout << "[Texture] Using cached texture: " << textureName << std::endl;
+        return it->second;
+    }
+    
+    // Load texture from ResourceManager
+    std::string texPath = "assets/textures/walls/" + textureName;
+    std::cout << "[Texture] Loading texture: " << texPath << std::endl;
+    const sf::Texture* tex = ResourceManager::getInstance().getTexture(texPath);
+    
+    if (tex) {
+        std::cout << "[Texture] Successfully loaded: " << textureName << std::endl;
+        const_cast<sf::Texture*>(tex)->setRepeated(true);
+        const_cast<sf::Texture*>(tex)->setSmooth(false);
+        textureCache_[textureName] = tex;
+        return tex;
+    }
+    
+    // Fallback to default texture
+    std::cout << "[Texture] FAILED to load: " << textureName << ", using wallTexture_" << std::endl;
+    return wallTexture_;
+}
+
 void SectorRenderer::render(sf::RenderTarget& target,
                            const SectorMap& map,
                            sf::Vector2f playerPos,
@@ -37,13 +68,20 @@ void SectorRenderer::render(sf::RenderTarget& target,
                            float playerHeight,
                            float pitch) {
     
+    std::cout << "[SectorRenderer] render() called" << std::endl;
+    
     currentPitch_ = pitch;
     drawBackground(target, currentSector);
+    
+    std::cout << "[SectorRenderer] Background drawn" << std::endl;
     
     if (!currentSector) {
         std::cerr << "[SectorRenderer] WARNING: No current sector to render!" << std::endl;
         return;
     }
+
+    // Clear texture batches for this frame
+    textureBatches_.clear();
 
     // Подготовка контекста рендеринга
     RenderContext context;
@@ -52,8 +90,6 @@ void SectorRenderer::render(sf::RenderTarget& target,
     context.projectionDistance = (screenHeight_ / 2.0f) / std::tan(fov / 2.0f);
     float pitchOffset = pitch * screenHeight_ * 0.5f;
     context.screenCenterY = screenHeight_ / 2.0f - pitchOffset;
-    
-    size_t vertexIndex = 0;
 
     // Рендеринг каждой колонки экрана
     for (int x = 0; x < screenWidth_; ++x) {
@@ -62,22 +98,31 @@ void SectorRenderer::render(sf::RenderTarget& target,
         float cosCorrection = std::cos(rayAngle - playerAngle);
         sf::Vector2f rayDir(std::cos(rayAngle), std::sin(rayAngle));
         
-        renderColumn(x, context, currentSector, playerPos, rayDir, cosCorrection, vertexIndex);
+        renderColumn(x, context, currentSector, playerPos, rayDir, cosCorrection);
     }
-
-    columnVertices_.resize(vertexIndex);
-
-    sf::RenderStates states;
-    if (wallTexture_) states.texture = wallTexture_;
-    target.draw(columnVertices_, states);
-
-    columnVertices_.resize(screenWidth_ * 6 * 10);
+    
+    std::cout << "[SectorRenderer] Collected " << textureBatches_.size() << " texture batches" << std::endl;
+    
+    // Draw all texture batches
+    for (const auto& pair : textureBatches_) {
+        const sf::Texture* tex = pair.first;
+        const std::vector<sf::Vertex>& vertices = pair.second;
+        
+        std::cout << "[SectorRenderer] Batch has " << vertices.size() << " vertices" << std::endl;
+        
+        if (!vertices.empty() && tex) {
+            sf::RenderStates states;
+            states.texture = tex;
+            target.draw(vertices.data(), vertices.size(), sf::PrimitiveType::Triangles, states);
+        }
+    }
+    
+    std::cout << "[SectorRenderer] Finished rendering" << std::endl;
 }
 
 void SectorRenderer::renderColumn(int x, const RenderContext& context,
                                   const Sector* currentSector, sf::Vector2f playerPos,
-                                  sf::Vector2f rayDir, float cosCorrection,
-                                  size_t& vertexIndex) {
+                                  sf::Vector2f rayDir, float cosCorrection) {
     ClipRegion clip{0.0f, static_cast<float>(screenHeight_)};
     
     const Sector* sector = currentSector;
@@ -102,12 +147,12 @@ void SectorRenderer::renderColumn(int x, const RenderContext& context,
         if (result.wall->isPortal()) {
             Sector* neighbor = result.wall->getNeighborSector();
             if (!neighbor) {
-                renderSolidWall(vertexIndex, x, clip, geom, color);
+                renderSolidWall(x, clip, geom, color, result.wall);
                 break;
             }
 
-            renderPortalWalls(vertexIndex, x, clip, context, *sector, *neighbor, 
-                            geom, color, correctedDist);
+            renderPortalWalls(x, clip, context, *sector, *neighbor, 
+                            geom, color, correctedDist, result.wall);
 
             const float WORLD_SCALE = TILE_SIZE;
             const float neighborFloorY = context.screenCenterY - (neighbor->getFloorHeight() - context.playerEyeZ) * 
@@ -126,7 +171,7 @@ void SectorRenderer::renderColumn(int x, const RenderContext& context,
             rayOrigin = hitPoint + rayDir * 0.1f;
             sector = neighbor;
         } else {
-            renderSolidWall(vertexIndex, x, clip, geom, color);
+            renderSolidWall(x, clip, geom, color, result.wall);
             break;
         }
     }
@@ -198,26 +243,37 @@ sf::Color SectorRenderer::calculateWallColor(float distance, const Sector& secto
     return sf::Color(colorValue, colorValue, colorValue);
 }
 
-void SectorRenderer::renderSolidWall(size_t& vertexIndex, int x,
+void SectorRenderer::renderSolidWall(int x,
                                     const ClipRegion& clip,
                                     const WallGeometry& geom,
-                                    sf::Color color) {
+                                    sf::Color color,
+                                    const Wall* wall) {
     const float wallTop = std::max(clip.top, geom.topY);
     const float wallBottom = std::min(clip.bottom, geom.bottomY);
     
     if (wallTop < wallBottom) {
-        drawWallSegment(vertexIndex, x, wallTop, wallBottom, geom, color);
+        // If wall specified, try to use its texture
+        if (wall) {
+            const std::string& texName = wall->getMiddleTexture();
+            const sf::Texture* currentTex = getTextureByName(texName);
+            if (currentTex) {
+                drawWallSegmentWithTexture(x, wallTop, wallBottom, geom, color, currentTex);
+                return;
+            }
+        }
+        drawWallSegment(x, wallTop, wallBottom, geom, color);
     }
 }
 
-void SectorRenderer::renderPortalWalls(size_t& vertexIndex, int x,
+void SectorRenderer::renderPortalWalls(int x,
                                       const ClipRegion& clip,
                                       const RenderContext& context,
                                       const Sector& currentSector,
                                       const Sector& neighborSector,
                                       const WallGeometry& geom,
                                       sf::Color color,
-                                      float distance) {
+                                      float distance,
+                                      const Wall* wall) {
     const float WORLD_SCALE = TILE_SIZE;
     const float neighborFloor = neighborSector.getFloorHeight();
     const float neighborCeiling = neighborSector.getCeilingHeight();
@@ -233,7 +289,17 @@ void SectorRenderer::renderPortalWalls(size_t& vertexIndex, int x,
         const float upperBottom = std::min(clip.bottom, neighborCeilingY);
         
         if (upperTop < upperBottom) {
-            drawWallSegment(vertexIndex, x, upperTop, upperBottom, geom, color);
+            if (wall) {
+                const std::string& upperTexName = wall->getUpperTexture();
+                const sf::Texture* upperTex = getTextureByName(upperTexName);
+                if (upperTex) {
+                    drawWallSegmentWithTexture(x, upperTop, upperBottom, geom, color, upperTex);
+                } else {
+                    drawWallSegment(x, upperTop, upperBottom, geom, color);
+                }
+            } else {
+                drawWallSegment(x, upperTop, upperBottom, geom, color);
+            }
         }
     }
 
@@ -243,7 +309,17 @@ void SectorRenderer::renderPortalWalls(size_t& vertexIndex, int x,
         const float lowerBottom = std::min(clip.bottom, geom.bottomY);
         
         if (lowerTop < lowerBottom) {
-            drawWallSegment(vertexIndex, x, lowerTop, lowerBottom, geom, color);
+            if (wall) {
+                const std::string& lowerTexName = wall->getLowerTexture();
+                const sf::Texture* lowerTex = getTextureByName(lowerTexName);
+                if (lowerTex) {
+                    drawWallSegmentWithTexture(x, lowerTop, lowerBottom, geom, color, lowerTex);
+                } else {
+                    drawWallSegment(x, lowerTop, lowerBottom, geom, color);
+                }
+            } else {
+                drawWallSegment(x, lowerTop, lowerBottom, geom, color);
+            }
         }
     }
 }
@@ -257,14 +333,19 @@ ClipRegion SectorRenderer::calculatePortalClip(const ClipRegion& currentClip,
     return newClip;
 }
 
-void SectorRenderer::drawWallSegment(size_t& vertexIndex, int x,
-                                     float top, float bottom,
-                                     const WallGeometry& geom,
-                                     sf::Color color) {
+void SectorRenderer::drawWallSegmentWithTexture(int x,
+                                                float top, float bottom,
+                                                const WallGeometry& geom,
+                                                sf::Color color,
+                                                const sf::Texture* texture) {
     if (top >= bottom) return;
-    if (vertexIndex + 6 > columnVertices_.getVertexCount()) return;
+    if (!texture) texture = wallTexture_; // Fallback
+    if (!texture) {
+        std::cerr << "[SectorRenderer] WARNING: No texture available for rendering!" << std::endl;
+        return;  // Cannot render without texture
+    }
     
-    float textureWidth = wallTexture_ ? static_cast<float>(wallTexture_->getSize().x) : 64.f;
+    float textureWidth = static_cast<float>(texture->getSize().x);
     float texX = geom.textureX * textureWidth;
     
     float texYStart = (top - geom.topY) * geom.screenScaleFactor;
@@ -273,31 +354,54 @@ void SectorRenderer::drawWallSegment(size_t& vertexIndex, int x,
     float left = static_cast<float>(x);
     float right = left + 1.f;
 
-    columnVertices_[vertexIndex + 0].position = sf::Vector2f(left, top);
-    columnVertices_[vertexIndex + 0].color = color;
-    columnVertices_[vertexIndex + 0].texCoords = sf::Vector2f(texX, texYStart);
+    // Add vertices to the batch for this specific texture
+    auto& batch = textureBatches_[texture];
     
-    columnVertices_[vertexIndex + 1].position = sf::Vector2f(left, bottom);
-    columnVertices_[vertexIndex + 1].color = color;
-    columnVertices_[vertexIndex + 1].texCoords = sf::Vector2f(texX, texYEnd);
+    // Reserve space if this is a new batch to avoid reallocations
+    if (batch.empty()) {
+        batch.reserve(screenWidth_ * 6);  // Rough estimate
+    }
     
-    columnVertices_[vertexIndex + 2].position = sf::Vector2f(right, top);
-    columnVertices_[vertexIndex + 2].color = color;
-    columnVertices_[vertexIndex + 2].texCoords = sf::Vector2f(texX, texYStart);
+    sf::Vertex v1, v2, v3, v4, v5, v6;
     
-    columnVertices_[vertexIndex + 3].position = sf::Vector2f(right, top);
-    columnVertices_[vertexIndex + 3].color = color;
-    columnVertices_[vertexIndex + 3].texCoords = sf::Vector2f(texX, texYStart);
+    v1.position = sf::Vector2f(left, top);
+    v1.color = color;
+    v1.texCoords = sf::Vector2f(texX, texYStart);
     
-    columnVertices_[vertexIndex + 4].position = sf::Vector2f(left, bottom);
-    columnVertices_[vertexIndex + 4].color = color;
-    columnVertices_[vertexIndex + 4].texCoords = sf::Vector2f(texX, texYEnd);
+    v2.position = sf::Vector2f(left, bottom);
+    v2.color = color;
+    v2.texCoords = sf::Vector2f(texX, texYEnd);
     
-    columnVertices_[vertexIndex + 5].position = sf::Vector2f(right, bottom);
-    columnVertices_[vertexIndex + 5].color = color;
-    columnVertices_[vertexIndex + 5].texCoords = sf::Vector2f(texX, texYEnd);
+    v3.position = sf::Vector2f(right, top);
+    v3.color = color;
+    v3.texCoords = sf::Vector2f(texX, texYStart);
     
-    vertexIndex += 6;
+    v4.position = sf::Vector2f(right, top);
+    v4.color = color;
+    v4.texCoords = sf::Vector2f(texX, texYStart);
+    
+    v5.position = sf::Vector2f(left, bottom);
+    v5.color = color;
+    v5.texCoords = sf::Vector2f(texX, texYEnd);
+    
+    v6.position = sf::Vector2f(right, bottom);
+    v6.color = color;
+    v6.texCoords = sf::Vector2f(texX, texYEnd);
+    
+    batch.push_back(v1);
+    batch.push_back(v2);
+    batch.push_back(v3);
+    batch.push_back(v4);
+    batch.push_back(v5);
+    batch.push_back(v6);
+}
+
+void SectorRenderer::drawWallSegment(int x,
+                                     float top, float bottom,
+                                     const WallGeometry& geom,
+                                     sf::Color color) {
+    // Use wallTexture_ as fallback
+    drawWallSegmentWithTexture(x, top, bottom, geom, color, wallTexture_);
 }
 
 void SectorRenderer::drawBackground(sf::RenderTarget& target, const Sector* sector) {

@@ -1,0 +1,19 @@
+{
+  "sectors": [
+    {
+      "id": 1,
+      "floorHeight": 0.0,
+      "ceilingHeight": 3.0,
+      "lightLevel": 255,
+      "floorTexture": "",
+      "ceilingTexture": "",
+      "flags": 0,
+      "walls": [
+        {"start": [100, 100], "end": [400, 100], "neighborId": null, "upperTexture": "", "middleTexture": "brick.png", "lowerTexture": "brick.png", "flags": 0},
+        {"start": [400, 100], "end": [400, 400], "neighborId": null, "upperTexture": "", "middleTexture": "wood.png", "lowerTexture": "brick.png", "flags": 0},
+        {"start": [400, 400], "end": [100, 400], "neighborId": null, "upperTexture": "", "middleTexture": "brick.png", "lowerTexture": "brick.png", "flags": 0},
+        {"start": [100, 400], "end": [100, 100], "neighborId": null, "upperTexture": "", "middleTexture": "brick.png", "lowerTexture": "brick.png", "flags": 0}
+      ]
+    }
+  ]
+}

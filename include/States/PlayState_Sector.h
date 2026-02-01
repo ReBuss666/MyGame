@@ -22,23 +22,40 @@ public:
     void onEnter() override {
         std::cout << "=== PlayState (Sector Engine): Entering ===" << std::endl;
         
+        std::cout << "[PlayState] Creating render texture " << INTERNAL_WIDTH << "x" << INTERNAL_HEIGHT << std::endl;
         if (!renderTexture_.resize({INTERNAL_WIDTH, INTERNAL_HEIGHT})) {
             std::cerr << "ERROR: Failed to create render texture!" << std::endl;
         }
+        std::cout << "[PlayState] Render texture created successfully" << std::endl;
         renderTexture_.setSmooth(false); 
         
+        std::cout << "[PlayState] Creating render sprite" << std::endl;
         renderSprite_ = std::make_unique<sf::Sprite>(renderTexture_.getTexture());
+        std::cout << "[PlayState] Render sprite created successfully" << std::endl;
 
         std::cout << "[PlayState] Loading sector map..." << std::endl;
+        std::cout << "[PlayState] Map path: " << mapFilePath_ << std::endl;
         
-        // Try to load from JSON file first, fallback to TestMapBuilder
+        // Try to load from JSON file directly
         auto result = MapLoader::loadFromFile(mapFilePath_, sectorMap_, 1.0f);
+        
         if (!result.success) {
             std::cerr << "[PlayState] Could not load map from file: " << result.error << std::endl;
-            std::cout << "[PlayState] Using TestMapBuilder to create default map..." << std::endl;
-            sectorMap_ = TestMapBuilder::buildSimpleStepMap();
+            std::cout << "[PlayState] Using TestMapBuilder as fallback..." << std::endl;
+            
+            // Fallback to programmatic map builders based on filename
+            if (mapFilePath_.find("simple_step") != std::string::npos) {
+                sectorMap_ = TestMapBuilder::buildSimpleStepMap();
+            } else if (mapFilePath_.find("window_demo") != std::string::npos) {
+                sectorMap_ = TestMapBuilder::buildWindowMap();
+            } else if (mapFilePath_.find("complex") != std::string::npos) {
+                sectorMap_ = TestMapBuilder::buildComplexMap();
+            } else {
+                // Default fallback
+                sectorMap_ = TestMapBuilder::buildSimpleStepMap();
+            }
         } else {
-            std::cout << "[PlayState] Loaded map from: " << mapFilePath_ << std::endl;
+            std::cout << "[PlayState] Successfully loaded map from: " << mapFilePath_ << std::endl;
             mapTextures_ = result.textureList;
         }
         
@@ -65,12 +82,29 @@ public:
         sectorRenderer_ = std::make_unique<SectorRenderer>(INTERNAL_WIDTH, INTERNAL_HEIGHT);
         sectorRenderer_->setRenderDistance(RAYCASTER_RENDER_DISTANCE);
 
+        // Load textures from JSON or default
+        if (!mapTextures_.empty()) {
+            std::cout << "[PlayState] Loading textures from map..." << std::endl;
+            for (const auto& texName : mapTextures_) {
+                if (!texName.empty()) {
+                    std::string texPath = "assets/textures/walls/" + texName;
+                    sf::Texture* tex = ResourceManager::getInstance().getTexture(texPath);
+                    if (tex) {
+                        tex->setRepeated(true);
+                        tex->setSmooth(false);
+                        std::cout << "[PlayState] Loaded texture: " << texPath << std::endl;
+                    }
+                }
+            }
+        }
+        
+        // Set default wall texture
         wallTexture_ = ResourceManager::getInstance().getTexture(Assets::WALL_TEXTURE);
         if (wallTexture_) {
             wallTexture_->setRepeated(true); 
             wallTexture_->setSmooth(false);
             sectorRenderer_->setTexture(wallTexture_);
-            std::cout << "[PlayState] Wall texture loaded: " << Assets::WALL_TEXTURE 
+            std::cout << "[PlayState] Default wall texture: " << Assets::WALL_TEXTURE 
                       << " (" << wallTexture_->getSize().x << "x" << wallTexture_->getSize().y << ")" << std::endl;
         } else {
             std::cerr << "WARNING: Wall texture not found at: " << Assets::WALL_TEXTURE << std::endl;

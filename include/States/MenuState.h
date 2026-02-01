@@ -8,6 +8,8 @@
 #include <SFML/Graphics.hpp>
 #include <vector>
 #include <memory>
+#include <filesystem>
+#include <algorithm>
 
 /**
  * @brief Main menu state with animated logo and fire effect
@@ -40,6 +42,14 @@ private:
     bool logoAnimationComplete_ = false;
     float buttonsFadeAlpha_ = 0.f;
 
+    // Map selection
+    std::vector<std::string> availableMaps_;
+    int selectedMapIndex_ = 0;
+    std::unique_ptr<sf::Text> mapNameText_;
+    sf::Font* menuFont_ = nullptr;
+
     void skipAnimation();
     void handleButtonClick(const std::string& buttonName);
+    void cycleMap(int direction);
+    void loadAvailableMaps();
 };
