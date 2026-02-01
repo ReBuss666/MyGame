@@ -46,66 +46,6 @@ jobs:
           settings.cfg
         retention-days: 90
 
-  build-windows:
-    runs-on: windows-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Setup MSVC
-      uses: microsoft/setup-msbuild@v2
-    
-    - name: Install vcpkg and SFML
-      shell: powershell
-      run: |
-        # Используем vcpkg для установки SFML 3
-        git clone https://github.com/Microsoft/vcpkg.git C:\vcpkg
-        cd C:\vcpkg
-        .\bootstrap-vcpkg.bat
-        .\vcpkg install sfml:x64-windows
-    
-    - name: Build project
-      shell: cmd
-      run: |
-        call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-        
-        mkdir build 2>nul || echo Build dir exists
-        
-        cl /c /EHsc /std:c++17 /O2 /Iinclude /IC:\vcpkg\installed\x64-windows\include src\main.cpp /Fo:build\main.obj
-        cl /c /EHsc /std:c++17 /O2 /Iinclude /IC:\vcpkg\installed\x64-windows\include src\Rendering\FireEffect.cpp /Fo:build\FireEffect.obj
-        cl /c /EHsc /std:c++17 /O2 /Iinclude /IC:\vcpkg\installed\x64-windows\include src\Rendering\SectorRenderer.cpp /Fo:build\SectorRenderer.obj
-        cl /c /EHsc /std:c++17 /O2 /Iinclude /IC:\vcpkg\installed\x64-windows\include src\States\MenuState.cpp /Fo:build\MenuState.obj
-        
-        link /OUT:MyGame.exe ^
-           build\main.obj ^
-           build\FireEffect.obj ^
-           build\SectorRenderer.obj ^
-           build\MenuState.obj ^
-           /LIBPATH:C:\vcpkg\installed\x64-windows\lib ^
-           sfml-graphics.lib sfml-window.lib sfml-audio.lib sfml-network.lib sfml-system.lib ^
-           opengl32.lib winmm.lib gdi32.lib
-    
-    - name: Copy SFML DLLs
-      shell: powershell
-      run: |
-        Copy-Item C:\vcpkg\installed\x64-windows\bin\*.dll . -Force
-    
-    - name: Run tests
-      run: |
-        echo "Tests would run here"
-    
-    - name: Upload Windows artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: MyGame-Windows
-        path: |
-          MyGame.exe
-          *.dll
-          assets/
-          settings.cfg
-        retention-days: 90
-
   build-windows-mingw:
     runs-on: ubuntu-latest
     container:
@@ -118,7 +58,7 @@ jobs:
     - name: Install MinGW cross-compiler and dependencies
       run: |
         pacman -Syu --noconfirm
-        pacman -S --noconfirm base-devel mingw-w64-gcc mingw-w64-cmake git cmake make
+        pacman -S --noconfirm base-devel mingw-w64-gcc git cmake make
     
     - name: Create toolchain file
       run: |
