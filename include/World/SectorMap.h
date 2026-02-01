@@ -147,18 +147,20 @@ public:
             for (const auto& wall : sector.getWalls()) {
                 sf::Color wallColor = wall.isSolid() ? sf::Color::Red : sf::Color::Green;
                 
-                sf::Vertex line[] = {
-                    sf::Vertex(wall.getStart(), wallColor),
-                    sf::Vertex(wall.getEnd(), wallColor)
-                };
+                sf::Vertex line[2];
+                line[0].position = wall.getStart();
+                line[0].color = wallColor;
+                line[1].position = wall.getEnd();
+                line[1].color = wallColor;
                 window.draw(line, 2, sf::PrimitiveType::Lines);
 
                 sf::Vector2f mid = (wall.getStart() + wall.getEnd()) / 2.0f;
                 sf::Vector2f normal = wall.getNormal() * 10.0f;
-                sf::Vertex normalLine[] = {
-                    sf::Vertex(mid, sf::Color::Yellow),
-                    sf::Vertex(mid + normal, sf::Color::Yellow)
-                };
+                sf::Vertex normalLine[2];
+                normalLine[0].position = mid;
+                normalLine[0].color = sf::Color::Yellow;
+                normalLine[1].position = mid + normal;
+                normalLine[1].color = sf::Color::Yellow;
                 window.draw(normalLine, 2, sf::PrimitiveType::Lines);
             }
         }

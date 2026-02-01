@@ -92,9 +92,9 @@ inline constexpr float MAX_FALL_SPEED = 1000.0f;
 
 namespace Assets {
     inline constexpr const char* LOGO_TEXTURE = "../assets/logo.png";
-    inline constexpr const char* WALL_TEXTURE = "../assets/textures/walls/brick.png";
+    inline constexpr const char* WALL_TEXTURE = "assets/textures/walls/brick.png";
     
-    inline constexpr const char* FONT_PRIMARY = "../assets/fonts/Orbitron-Black.ttf";
+    inline constexpr const char* FONT_PRIMARY = "assets/fonts/Orbitron-Black.ttf";
     inline constexpr const char* FONT_FALLBACK_1 = "C:/Windows/Fonts/arial.ttf";
     inline constexpr const char* FONT_FALLBACK_2 = "C:/Windows/Fonts/calibri.ttf";
     inline constexpr const char* FONT_FALLBACK_3 = "C:/Windows/Fonts/segoeui.ttf";

@@ -5,9 +5,9 @@
 void MenuState::onEnter() {
     std::cout << "=== MenuState: Loading resources ===" << std::endl;
 
-    std::cout << "[MenuState] Loading logo from: ../assets/logo.png" << std::endl;
+    std::cout << "[MenuState] Loading logo from: assets/logo.png" << std::endl;
     
-    logoTexture_ = ResourceManager::getInstance().getTexture("../assets/logo.png");
+    logoTexture_ = ResourceManager::getInstance().getTexture("assets/logo.png");
     
     if (!logoTexture_) {
         std::cerr << "[MenuState] FAILED to load logo texture!" << std::endl;

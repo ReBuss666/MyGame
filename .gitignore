@@ -1,11 +1,22 @@
+# ===================================
+# C++ Project .gitignore
+# ===================================
+
 # Compiled Object files
 *.o
 *.obj
 *.slo
 *.lo
+*.ko
+*.elf
+
+# Precompiled Headers
+*.gch
+*.pch
 
 # Compiled Dynamic libraries
 *.so
+*.so.*
 *.dylib
 *.dll
 
@@ -19,13 +30,23 @@
 *.exe
 *.out
 *.app
+*.i*86
+*.x86_64
+*.hex
+
+# Бинарники проекта (добавьте имя вашего исполняемого файла)
+MyGame
+MyGame.exe
 
 # Build directories
 build/
+Build/
 bin/
+Bin/
+obj/
 cmake-build-*/
 out/
-assets/maps
+dist/
 
 # IDE and Editor files
 .vscode/
@@ -35,19 +56,72 @@ assets/maps
 *.swo
 *~
 .DS_Store
+*.bak
+*.tmp
+.project
+.cproject
+.settings/
 
 # CMake
 CMakeCache.txt
 CMakeFiles/
 cmake_install.cmake
-Makefile
-*.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+_deps
 
 # Debug files
 *.dSYM/
 *.su
 *.idb
 *.pdb
+*.ilk
+
+# Core dumps
+core
+core.*
+vgcore.*
+
+# Dependencies
+*.d
+
+# Generated documentation
+docs/html/
+docs/latex/
+Doxygen/
+
+# Temporary files
+*.log
+*.cache
+*.temp
+*~
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Package managers
+*.lock
+package-lock.json
+yarn.lock
+
+# Test coverage
+*.gcda
+*.gcno
+*.gcov
+coverage/
+*.coverage
+
+# Profiling
+*.prof
+gmon.out
+callgrind.*
+
+# Assets (опционально - раскомментируйте если не хотите коммитить карты)
+# assets/maps/*.json
 
 # Package managers
 vcpkg_installed/

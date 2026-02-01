@@ -59,7 +59,8 @@ public:
         }
 
         float t = ((point.x - start_.x) * delta.x + (point.y - start_.y) * delta.y) / lengthSquared;
-        t = std::clamp(t, 0.0f, 1.0f);
+        if (t < 0.0f) t = 0.0f;
+        if (t > 1.0f) t = 1.0f;
 
         return start_ + delta * t;
     }

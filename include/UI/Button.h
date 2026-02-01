@@ -24,7 +24,7 @@ public:
         shape_.setOutlineColor(sf::Color(150, 150, 150));
         
         const std::vector<std::string> fontPaths = {
-            "../assets/fonts/Orbitron-Black.ttf",
+            "assets/fonts/Orbitron-Black.ttf",
             "C:/Windows/Fonts/arial.ttf",
             "C:/Windows/Fonts/calibri.ttf",
             "C:/Windows/Fonts/segoeui.ttf"
