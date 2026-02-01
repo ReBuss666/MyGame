@@ -58,7 +58,9 @@ jobs:
     - name: Install MinGW cross-compiler and dependencies
       run: |
         pacman -Syu --noconfirm
-        pacman -S --noconfirm base-devel mingw-w64-gcc git cmake make
+        pacman -S --noconfirm base-devel mingw-w64-gcc git cmake make \
+          mingw-w64-flac mingw-w64-libogg mingw-w64-libvorbis mingw-w64-openal \
+          mingw-w64-freetype2 mingw-w64-harfbuzz
     
     - name: Create toolchain file
       run: |
@@ -83,10 +85,10 @@ jobs:
               -DBUILD_SHARED_LIBS=TRUE \
               -DSFML_BUILD_EXAMPLES=FALSE \
               -DSFML_BUILD_DOC=FALSE \
-              -DSFML_BUILD_AUDIO=FALSE \
               -DSFML_BUILD_NETWORK=FALSE \
+              -DCMAKE_BUILD_TYPE=Release \
               /tmp/SFML
-        make -j2
+        make -j1
         make install
     
     - name: Build project for Windows
@@ -103,7 +105,7 @@ jobs:
         x86_64-w64-mingw32-g++ -o MyGame.exe \
             build/main.o build/FireEffect.o build/SectorRenderer.o build/MenuState.o \
             -L/usr/x86_64-w64-mingw32/lib \
-            -lsfml-graphics -lsfml-window -lsfml-system \
+            -lsfml-graphics -lsfml-window -lsfml-audio -lsfml-system \
             -lopengl32 -lwinmm -lgdi32 -static-libgcc -static-libstdc++
     
     - name: Copy SFML DLLs
