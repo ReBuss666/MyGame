@@ -118,17 +118,31 @@ jobs:
     - name: Install MinGW cross-compiler and dependencies
       run: |
         pacman -Syu --noconfirm
-        pacman -S --noconfirm base-devel mingw-w64-gcc git cmake
+        pacman -S --noconfirm base-devel mingw-w64-gcc mingw-w64-cmake git cmake make
+    
+    - name: Create toolchain file
+      run: |
+        cat > /tmp/mingw-toolchain.cmake << 'EOF'
+        set(CMAKE_SYSTEM_NAME Windows)
+        set(CMAKE_C_COMPILER x86_64-w64-mingw32-gcc)
+        set(CMAKE_CXX_COMPILER x86_64-w64-mingw32-g++)
+        set(CMAKE_RC_COMPILER x86_64-w64-mingw32-windres)
+        set(CMAKE_FIND_ROOT_PATH /usr/x86_64-w64-mingw32)
+        set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+        set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+        set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+        EOF
     
     - name: Download and build SFML for Windows
       run: |
         git clone --depth 1 --branch master https://github.com/SFML/SFML.git /tmp/SFML
         mkdir /tmp/SFML-build
         cd /tmp/SFML-build
-        cmake -DCMAKE_TOOLCHAIN_FILE=/usr/share/mingw/toolchain-x86_64-w64-mingw32.cmake \
+        cmake -DCMAKE_TOOLCHAIN_FILE=/tmp/mingw-toolchain.cmake \
               -DCMAKE_INSTALL_PREFIX=/usr/x86_64-w64-mingw32 \
               -DBUILD_SHARED_LIBS=TRUE \
               -DSFML_BUILD_EXAMPLES=FALSE \
+              -DSFML_BUILD_DOC=FALSE \
               /tmp/SFML
         make -j$(nproc)
         make install
