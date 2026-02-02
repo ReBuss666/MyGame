@@ -2,6 +2,7 @@
 #include "../Core/GameState.h"
 #include "../World/SectorMap.h"
 #include "../World/MapLoader.h"
+#include "../World/Testmapbuilder.h"
 #include "../Core/StateManager.h"
 #include "../Core/ResourceManager.h"
 #include "../Utils/settings.h"
@@ -22,21 +23,40 @@ public:
     void onEnter() override {
         std::cout << "=== PlayState (Sector Engine): Entering ===" << std::endl;
         
+        std::cout << "[PlayState] Creating render texture " << INTERNAL_WIDTH << "x" << INTERNAL_HEIGHT << std::endl;
         if (!renderTexture_.resize({INTERNAL_WIDTH, INTERNAL_HEIGHT})) {
             std::cerr << "ERROR: Failed to create render texture!" << std::endl;
         }
+        std::cout << "[PlayState] Render texture created successfully" << std::endl;
         renderTexture_.setSmooth(false); 
         
+        std::cout << "[PlayState] Creating render sprite" << std::endl;
         renderSprite_ = std::make_unique<sf::Sprite>(renderTexture_.getTexture());
+        std::cout << "[PlayState] Render sprite created successfully" << std::endl;
 
         std::cout << "[PlayState] Loading sector map..." << std::endl;
+        std::cout << "[PlayState] Map path: " << mapFilePath_ << std::endl;
         
-        // Load map from JSON file (scale = 1.0, coordinates already in game units)
+        // Try to load from JSON file directly
         auto result = MapLoader::loadFromFile(mapFilePath_, sectorMap_, 1.0f);
+        
         if (!result.success) {
-            std::cerr << "ERROR: Failed to load map: " << result.error << std::endl;
+            std::cerr << "[PlayState] Could not load map from file: " << result.error << std::endl;
+            std::cout << "[PlayState] Using TestMapBuilder as fallback..." << std::endl;
+            
+            // Fallback to programmatic map builders based on filename
+            if (mapFilePath_.find("simple_step") != std::string::npos) {
+                sectorMap_ = TestMapBuilder::buildSimpleStepMap();
+            } else if (mapFilePath_.find("window_demo") != std::string::npos) {
+                sectorMap_ = TestMapBuilder::buildWindowMap();
+            } else if (mapFilePath_.find("complex") != std::string::npos) {
+                sectorMap_ = TestMapBuilder::buildComplexMap();
+            } else {
+                // Default fallback
+                sectorMap_ = TestMapBuilder::buildSimpleStepMap();
+            }
         } else {
-            std::cout << "[PlayState] Loaded map from: " << mapFilePath_ << std::endl;
+            std::cout << "[PlayState] Successfully loaded map from: " << mapFilePath_ << std::endl;
             mapTextures_ = result.textureList;
         }
         
@@ -63,12 +83,29 @@ public:
         sectorRenderer_ = std::make_unique<SectorRenderer>(INTERNAL_WIDTH, INTERNAL_HEIGHT);
         sectorRenderer_->setRenderDistance(RAYCASTER_RENDER_DISTANCE);
 
+        // Load textures from JSON or default
+        if (!mapTextures_.empty()) {
+            std::cout << "[PlayState] Loading textures from map..." << std::endl;
+            for (const auto& texName : mapTextures_) {
+                if (!texName.empty()) {
+                    std::string texPath = "assets/textures/walls/" + texName;
+                    sf::Texture* tex = ResourceManager::getInstance().getTexture(texPath);
+                    if (tex) {
+                        tex->setRepeated(true);
+                        tex->setSmooth(false);
+                        std::cout << "[PlayState] Loaded texture: " << texPath << std::endl;
+                    }
+                }
+            }
+        }
+        
+        // Set default wall texture
         wallTexture_ = ResourceManager::getInstance().getTexture(Assets::WALL_TEXTURE);
         if (wallTexture_) {
             wallTexture_->setRepeated(true); 
             wallTexture_->setSmooth(false);
             sectorRenderer_->setTexture(wallTexture_);
-            std::cout << "[PlayState] Wall texture loaded: " << Assets::WALL_TEXTURE 
+            std::cout << "[PlayState] Default wall texture: " << Assets::WALL_TEXTURE 
                       << " (" << wallTexture_->getSize().x << "x" << wallTexture_->getSize().y << ")" << std::endl;
         } else {
             std::cerr << "WARNING: Wall texture not found at: " << Assets::WALL_TEXTURE << std::endl;
@@ -462,10 +499,11 @@ private:
         sf::Vector2f pos = player_->getPosition();
         float angle = player_->getViewAngle();
         sf::Vector2f endPos(pos.x + std::cos(angle) * 50.f, pos.y + std::sin(angle) * 50.f);
-        sf::Vertex line[] = { 
-            sf::Vertex(pos, sf::Color::Yellow), 
-            sf::Vertex(endPos, sf::Color::Yellow) 
-        };
+        sf::Vertex line[2];
+        line[0].position = pos;
+        line[0].color = sf::Color::Yellow;
+        line[1].position = endPos;
+        line[1].color = sf::Color::Yellow;
         window.draw(line, 2, sf::PrimitiveType::Lines);
     }
 

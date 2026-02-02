@@ -11,10 +11,10 @@ class Button {
 public:
     Button(const std::string& text, sf::Vector2f position, sf::Vector2f size = {300.f, 60.f}) 
         : text_(text)
+        , font_(nullptr)
         , position_(position)
         , size_(size)
         , isHovered_(false)
-        , font_(nullptr)
         , alpha_(255)
     {
         shape_.setSize(size_);
@@ -24,7 +24,7 @@ public:
         shape_.setOutlineColor(sf::Color(150, 150, 150));
         
         const std::vector<std::string> fontPaths = {
-            "../assets/fonts/Orbitron-Black.ttf",
+            "assets/fonts/Orbitron-Black.ttf",
             "C:/Windows/Fonts/arial.ttf",
             "C:/Windows/Fonts/calibri.ttf",
             "C:/Windows/Fonts/segoeui.ttf"

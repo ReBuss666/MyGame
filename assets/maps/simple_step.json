@@ -1,0 +1,106 @@
+{
+  "sectors": [
+    {
+      "id": 0,
+      "floorHeight": 0.0,
+      "ceilingHeight": 3.0,
+      "lightLevel": 255,
+      "floorTexture": "",
+      "ceilingTexture": "",
+      "flags": 0,
+      "walls": [
+        {"start": [0, 0], "end": [256, 0], "neighborId": null, "upperTexture": "", "middleTexture": "", "lowerTexture": "", "flags": 0},
+        {"start": [256, 0], "end": [256, 256], "neighborId": 1, "upperTexture": "", "middleTexture": "", "lowerTexture": "brick.png", "flags": 0},
+        {"start": [256, 256], "end": [160, 256], "neighborId": null, "upperTexture": "", "middleTexture": "", "lowerTexture": "", "flags": 0},
+        {"start": [160, 256], "end": [96, 256], "neighborId": 3, "upperTexture": "brick.png", "middleTexture": "", "lowerTexture": "", "flags": 0},
+        {"start": [96, 256], "end": [0, 256], "neighborId": null, "upperTexture": "", "middleTexture": "", "lowerTexture": "", "flags": 0},
+        {"start": [0, 256], "end": [0, 0], "neighborId": null, "upperTexture": "", "middleTexture": "", "lowerTexture": "", "flags": 0}
+      ]
+    },
+    {
+      "id": 1,
+      "floorHeight": 0.4,
+      "ceilingHeight": 3.0,
+      "lightLevel": 220,
+      "floorTexture": "",
+      "ceilingTexture": "",
+      "flags": 0,
+      "walls": [
+        {"start": [256, 0], "end": [512, 0], "neighborId": null, "upperTexture": "", "middleTexture": "", "lowerTexture": "", "flags": 0},
+        {"start": [512, 0], "end": [512, 256], "neighborId": 2, "upperTexture": "", "middleTexture": "", "lowerTexture": "brick.png", "flags": 0},
+        {"start": [512, 256], "end": [416, 256], "neighborId": null, "upperTexture": "", "middleTexture": "", "lowerTexture": "", "flags": 0},
+        {"start": [416, 256], "end": [352, 256], "neighborId": 4, "upperTexture": "", "middleTexture": "", "lowerTexture": "", "flags": 0},
+        {"start": [352, 256], "end": [256, 256], "neighborId": null, "upperTexture": "", "middleTexture": "", "lowerTexture": "", "flags": 0},
+        {"start": [256, 256], "end": [256, 0], "neighborId": 0, "upperTexture": "", "middleTexture": "", "lowerTexture": "", "flags": 0}
+      ]
+    },
+    {
+      "id": 2,
+      "floorHeight": 0.8,
+      "ceilingHeight": 3.0,
+      "lightLevel": 200,
+      "floorTexture": "",
+      "ceilingTexture": "",
+      "flags": 0,
+      "walls": [
+        {"start": [512, 0], "end": [768, 0], "neighborId": null, "upperTexture": "", "middleTexture": "", "lowerTexture": "", "flags": 0},
+        {"start": [768, 0], "end": [768, 256], "neighborId": null, "upperTexture": "", "middleTexture": "", "lowerTexture": "", "flags": 0},
+        {"start": [768, 256], "end": [672, 256], "neighborId": null, "upperTexture": "", "middleTexture": "", "lowerTexture": "", "flags": 0},
+        {"start": [672, 256], "end": [608, 256], "neighborId": 5, "upperTexture": "", "middleTexture": "", "lowerTexture": "", "flags": 0},
+        {"start": [608, 256], "end": [512, 256], "neighborId": null, "upperTexture": "", "middleTexture": "", "lowerTexture": "", "flags": 0},
+        {"start": [512, 256], "end": [512, 0], "neighborId": 1, "upperTexture": "", "middleTexture": "", "lowerTexture": "", "flags": 0}
+      ]
+    },
+    {
+      "id": 3,
+      "floorHeight": -0.5,
+      "ceilingHeight": 2.5,
+      "lightLevel": 120,
+      "floorTexture": "",
+      "ceilingTexture": "",
+      "flags": 0,
+      "walls": [
+        {"start": [0, 256], "end": [96, 256], "neighborId": null, "upperTexture": "", "middleTexture": "", "lowerTexture": "", "flags": 0},
+        {"start": [96, 256], "end": [160, 256], "neighborId": 0, "upperTexture": "", "middleTexture": "", "lowerTexture": "wood.png", "flags": 0},
+        {"start": [160, 256], "end": [256, 256], "neighborId": null, "upperTexture": "", "middleTexture": "", "lowerTexture": "", "flags": 0},
+        {"start": [256, 256], "end": [256, 512], "neighborId": null, "upperTexture": "", "middleTexture": "", "lowerTexture": "", "flags": 0},
+        {"start": [256, 512], "end": [0, 512], "neighborId": null, "upperTexture": "", "middleTexture": "", "lowerTexture": "", "flags": 0},
+        {"start": [0, 512], "end": [0, 256], "neighborId": null, "upperTexture": "", "middleTexture": "", "lowerTexture": "", "flags": 0}
+      ]
+    },
+    {
+      "id": 4,
+      "floorHeight": 0.0,
+      "ceilingHeight": 4.0,
+      "lightLevel": 255,
+      "floorTexture": "",
+      "ceilingTexture": "",
+      "flags": 0,
+      "walls": [
+        {"start": [256, 256], "end": [352, 256], "neighborId": null, "upperTexture": "", "middleTexture": "", "lowerTexture": "", "flags": 0},
+        {"start": [352, 256], "end": [416, 256], "neighborId": 1, "upperTexture": "", "middleTexture": "", "lowerTexture": "", "flags": 0},
+        {"start": [416, 256], "end": [512, 256], "neighborId": null, "upperTexture": "", "middleTexture": "", "lowerTexture": "", "flags": 0},
+        {"start": [512, 256], "end": [512, 512], "neighborId": null, "upperTexture": "", "middleTexture": "", "lowerTexture": "", "flags": 0},
+        {"start": [512, 512], "end": [256, 512], "neighborId": null, "upperTexture": "", "middleTexture": "", "lowerTexture": "", "flags": 0},
+        {"start": [256, 512], "end": [256, 256], "neighborId": null, "upperTexture": "", "middleTexture": "", "lowerTexture": "", "flags": 0}
+      ]
+    },
+    {
+      "id": 5,
+      "floorHeight": 0.6,
+      "ceilingHeight": 3.0,
+      "lightLevel": 180,
+      "floorTexture": "",
+      "ceilingTexture": "",
+      "flags": 0,
+      "walls": [
+        {"start": [512, 256], "end": [608, 256], "neighborId": null, "upperTexture": "", "middleTexture": "", "lowerTexture": "", "flags": 0},
+        {"start": [608, 256], "end": [672, 256], "neighborId": 2, "upperTexture": "", "middleTexture": "", "lowerTexture": "", "flags": 0},
+        {"start": [672, 256], "end": [768, 256], "neighborId": null, "upperTexture": "", "middleTexture": "", "lowerTexture": "", "flags": 0},
+        {"start": [768, 256], "end": [768, 512], "neighborId": null, "upperTexture": "", "middleTexture": "", "lowerTexture": "", "flags": 0},
+        {"start": [768, 512], "end": [512, 512], "neighborId": null, "upperTexture": "", "middleTexture": "", "lowerTexture": "", "flags": 0},
+        {"start": [512, 512], "end": [512, 256], "neighborId": null, "upperTexture": "", "middleTexture": "", "lowerTexture": "", "flags": 0}
+      ]
+    }
+  ]
+}

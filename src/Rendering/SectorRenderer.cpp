@@ -28,6 +28,37 @@ void SectorRenderer::setRenderDistance(float distance) {
     renderDistance_ = distance;
 }
 
+const sf::Texture* SectorRenderer::getTextureByName(const std::string& textureName) const {
+    if (textureName.empty()) {
+        std::cout << "[Texture] Empty texture name, using default wallTexture_" << std::endl;
+        return wallTexture_;  // Use default if no texture specified
+    }
+    
+    // Check cache first
+    auto it = textureCache_.find(textureName);
+    if (it != textureCache_.end()) {
+        std::cout << "[Texture] Using cached texture: " << textureName << std::endl;
+        return it->second;
+    }
+    
+    // Load texture from ResourceManager
+    std::string texPath = "assets/textures/walls/" + textureName;
+    std::cout << "[Texture] Loading texture: " << texPath << std::endl;
+    const sf::Texture* tex = ResourceManager::getInstance().getTexture(texPath);
+    
+    if (tex) {
+        std::cout << "[Texture] Successfully loaded: " << textureName << std::endl;
+        const_cast<sf::Texture*>(tex)->setRepeated(true);
+        const_cast<sf::Texture*>(tex)->setSmooth(false);
+        textureCache_[textureName] = tex;
+        return tex;
+    }
+    
+    // Fallback to default texture
+    std::cout << "[Texture] FAILED to load: " << textureName << ", using wallTexture_" << std::endl;
+    return wallTexture_;
+}
+
 void SectorRenderer::render(sf::RenderTarget& target,
                            const SectorMap& map,
                            sf::Vector2f playerPos,
@@ -37,192 +68,340 @@ void SectorRenderer::render(sf::RenderTarget& target,
                            float playerHeight,
                            float pitch) {
     
-    currentPitch_ = pitch;
+    std::cout << "[SectorRenderer] render() called" << std::endl;
     
+    currentPitch_ = pitch;
     drawBackground(target, currentSector);
+    
+    std::cout << "[SectorRenderer] Background drawn" << std::endl;
     
     if (!currentSector) {
         std::cerr << "[SectorRenderer] WARNING: No current sector to render!" << std::endl;
         return;
     }
 
-    float playerEyeZ = currentSector->getFloorHeight() + playerHeight;
-    
-    float projDist = (screenHeight_ / 2.0f) / std::tan(fov / 2.0f);
-    
+    // Clear texture batches for this frame
+    textureBatches_.clear();
+
+    // Подготовка контекста рендеринга
+    RenderContext context;
+    context.fov = fov;
+    context.playerEyeZ = currentSector->getFloorHeight() + playerHeight;
+    context.projectionDistance = (screenHeight_ / 2.0f) / std::tan(fov / 2.0f);
     float pitchOffset = pitch * screenHeight_ * 0.5f;
-    float screenCenterY = screenHeight_ / 2.0f - pitchOffset;
-    
-    const float WORLD_SCALE = TILE_SIZE;
+    context.screenCenterY = screenHeight_ / 2.0f - pitchOffset;
 
-    size_t vertexIndex = 0;
-
+    // Рендеринг каждой колонки экрана
     for (int x = 0; x < screenWidth_; ++x) {
         float cameraX = 2.0f * x / static_cast<float>(screenWidth_) - 1.0f;
         float rayAngle = playerAngle + std::atan(cameraX * std::tan(fov / 2.0f));
         float cosCorrection = std::cos(rayAngle - playerAngle);
         sf::Vector2f rayDir(std::cos(rayAngle), std::sin(rayAngle));
-
-        float clipTop = 0.0f;
-        float clipBottom = static_cast<float>(screenHeight_);
         
-        const Sector* sector = currentSector;
-        sf::Vector2f rayOrigin = playerPos;
-        float totalDistance = 0.0f;
-        int maxPortals = 8;  // Максимальная глубина порталов
+        renderColumn(x, context, currentSector, playerPos, rayDir, cosCorrection);
+    }
+    
+    std::cout << "[SectorRenderer] Collected " << textureBatches_.size() << " texture batches" << std::endl;
+    
+    // Draw all texture batches
+    for (const auto& pair : textureBatches_) {
+        const sf::Texture* tex = pair.first;
+        const std::vector<sf::Vertex>& vertices = pair.second;
+        
+        std::cout << "[SectorRenderer] Batch has " << vertices.size() << " vertices" << std::endl;
+        
+        if (!vertices.empty() && tex) {
+            sf::RenderStates states;
+            states.texture = tex;
+            target.draw(vertices.data(), vertices.size(), sf::PrimitiveType::Triangles, states);
+        }
+    }
+    
+    std::cout << "[SectorRenderer] Finished rendering" << std::endl;
+}
 
-        for (int portalDepth = 0; portalDepth < maxPortals && sector != nullptr; ++portalDepth) {
-            float closestDist = renderDistance_ * TILE_SIZE;
-            const Wall* closestWall = nullptr;
-            bool closestSide = false;
+void SectorRenderer::renderColumn(int x, const RenderContext& context,
+                                  const Sector* currentSector, sf::Vector2f playerPos,
+                                  sf::Vector2f rayDir, float cosCorrection) {
+    ClipRegion clip{0.0f, static_cast<float>(screenHeight_)};
+    
+    const Sector* sector = currentSector;
+    sf::Vector2f rayOrigin = playerPos;
+    float totalDistance = 0.0f;
+    const int maxPortals = 8;
 
-            for (const auto& wall : sector->getWalls()) {
-                float dist = 0.0f;
-                bool side = false;
-                
-                if (rayWallIntersection(rayOrigin, rayDir, wall, dist, side)) {
-                    if (dist > 0.01f && dist < closestDist) {
-                        closestDist = dist;
-                        closestWall = &wall;
-                        closestSide = side;
-                    }
-                }
+    for (int portalDepth = 0; portalDepth < maxPortals && sector; ++portalDepth) {
+        const RaycastResult result = findClosestWall(*sector, rayOrigin, rayDir);
+        
+        if (!result.hit) {
+            break;
+        }
+
+        totalDistance += result.distance;
+        const float correctedDist = std::max(0.1f, totalDistance * cosCorrection);
+        const sf::Vector2f hitPoint = rayOrigin + rayDir * result.distance;
+        const WallGeometry geom = calculateWallGeometry(context, correctedDist, *sector, 
+                                                        *result.wall, hitPoint, result.hitSide);
+        const sf::Color color = calculateWallColor(correctedDist, *sector, result.hitSide);
+
+        if (result.wall->isPortal()) {
+            Sector* neighbor = result.wall->getNeighborSector();
+            if (!neighbor) {
+                renderSolidWall(x, clip, geom, color, result.wall);
+                break;
             }
 
-            if (!closestWall) break;
+            renderPortalWalls(x, clip, context, *sector, *neighbor, 
+                            geom, color, correctedDist, result.wall);
 
-            totalDistance += closestDist;
-            float correctedDist = totalDistance * cosCorrection;
-            if (correctedDist < 0.1f) correctedDist = 0.1f;
+            const float WORLD_SCALE = TILE_SIZE;
+            const float neighborFloorY = context.screenCenterY - (neighbor->getFloorHeight() - context.playerEyeZ) * 
+                                        context.projectionDistance * WORLD_SCALE / correctedDist;
+            const float neighborCeilingY = context.screenCenterY - (neighbor->getCeilingHeight() - context.playerEyeZ) * 
+                                          context.projectionDistance * WORLD_SCALE / correctedDist;
 
-            float currentFloor = sector->getFloorHeight();
-            float currentCeiling = sector->getCeilingHeight();
-
-            float currentFloorY = screenCenterY - (currentFloor - playerEyeZ) * projDist * WORLD_SCALE / correctedDist;
-            float currentCeilingY = screenCenterY - (currentCeiling - playerEyeZ) * projDist * WORLD_SCALE / correctedDist;
-
-            float wallScreenHeight = currentFloorY - currentCeilingY;
-            if (wallScreenHeight < 0.1f) wallScreenHeight = 0.1f;
-
-            float textureHeight = wallTexture_ ? static_cast<float>(wallTexture_->getSize().y) : 64.f;
-            float zoomfactor = 2.f;
-            float screenScaleFactor = (textureHeight * zoomfactor) / wallScreenHeight;
-
-            sf::Vector2f hitPoint = rayOrigin + rayDir * closestDist;
-            float wallX = calculateTextureX(*closestWall, hitPoint, closestSide);
-
-            float worldDist = correctedDist / TILE_SIZE;
-            float brightness = std::max(0.3f, 1.0f - (worldDist / renderDistance_));
-            if (closestSide) brightness *= 0.7f;
-            brightness *= (sector->getLightLevel() / 255.0f);
-
-            sf::Color wallColor(
-                static_cast<uint8_t>(255 * brightness),
-                static_cast<uint8_t>(255 * brightness),
-                static_cast<uint8_t>(255 * brightness)
-            );
-
-            if (closestWall->isPortal()) {
-                Sector* neighbor = closestWall->getNeighborSector();
-                if (!neighbor) {
-                    drawWallSegment(vertexIndex, x, 
-                                   std::max(clipTop, currentCeilingY),
-                                   std::min(clipBottom, currentFloorY),
-                                   currentCeilingY, screenScaleFactor,
-                                   wallX, wallColor);
-                    break;
-                }
-
-                float neighborFloor = neighbor->getFloorHeight();
-                float neighborCeiling = neighbor->getCeilingHeight();
-
-                float neighborFloorY = screenCenterY - (neighborFloor - playerEyeZ) * projDist * WORLD_SCALE / correctedDist;
-                float neighborCeilingY = screenCenterY - (neighborCeiling - playerEyeZ) * projDist * WORLD_SCALE / correctedDist;
-
-                if (neighborCeiling < currentCeiling) {
-                    float upperTop = std::max(clipTop, currentCeilingY);
-                    float upperBottom = std::min(clipBottom, neighborCeilingY);
-                    
-                    if (upperTop < upperBottom) {
-                        drawWallSegment(vertexIndex, x, upperTop, upperBottom, 
-                                       currentCeilingY, screenScaleFactor, wallX, wallColor);
-                    }
-                }
-
-                if (neighborFloor > currentFloor) {
-                    float lowerTop = std::max(clipTop, neighborFloorY);
-                    float lowerBottom = std::min(clipBottom, currentFloorY);
-                    
-                    if (lowerTop < lowerBottom) {
-                        drawWallSegment(vertexIndex, x, lowerTop, lowerBottom, 
-                                       currentCeilingY, screenScaleFactor, wallX, wallColor);
-                    }
-                }
-
-                float portalTop = std::max(currentCeilingY, neighborCeilingY);
-                float portalBottom = std::min(currentFloorY, neighborFloorY);
-                
-                clipTop = std::max(clipTop, portalTop);
-                clipBottom = std::min(clipBottom, portalBottom);
-
-                if (clipTop >= clipBottom) break;
-
-                rayOrigin = hitPoint + rayDir * 0.1f;
-                sector = neighbor;
-
-            } else {
-                float wallTop = std::max(clipTop, currentCeilingY);
-                float wallBottom = std::min(clipBottom, currentFloorY);
-                
-                if (wallTop < wallBottom) {
-                    drawWallSegment(vertexIndex, x, wallTop, wallBottom, 
-                                   currentCeilingY, screenScaleFactor, wallX, wallColor);
-                }
+            const ClipRegion newClip = calculatePortalClip(clip, geom.topY, geom.bottomY,
+                                                           neighborCeilingY, neighborFloorY);
+            
+            if (newClip.isEmpty()) {
                 break;
+            }
+            
+            clip = newClip;
+            rayOrigin = hitPoint + rayDir * 0.1f;
+            sector = neighbor;
+        } else {
+            renderSolidWall(x, clip, geom, color, result.wall);
+            break;
+        }
+    }
+}
+
+RaycastResult SectorRenderer::findClosestWall(const Sector& sector,
+                                              sf::Vector2f origin,
+                                              sf::Vector2f direction) const {
+    RaycastResult result;
+    result.distance = renderDistance_ * TILE_SIZE;
+    result.sector = &sector;
+    
+    const float MIN_DISTANCE = 0.01f;
+    
+    for (const auto& wall : sector.getWalls()) {
+        float dist = 0.0f;
+        bool side = false;
+        
+        if (checkRayWallIntersection(origin, direction, wall, dist, side)) {
+            if (dist > MIN_DISTANCE && dist < result.distance) {
+                result.distance = dist;
+                result.wall = &wall;
+                result.hitSide = side;
+                result.hit = true;
+            }
+        }
+    }
+    
+    return result;
+}
+
+WallGeometry SectorRenderer::calculateWallGeometry(const RenderContext& context,
+                                                   float distance,
+                                                   const Sector& sector,
+                                                   const Wall& wall,
+                                                   sf::Vector2f hitPoint,
+                                                   bool hitSide) const {
+    const float WORLD_SCALE = TILE_SIZE;
+    const float floorHeight = sector.getFloorHeight();
+    const float ceilingHeight = sector.getCeilingHeight();
+
+    WallGeometry geom;
+    geom.bottomY = context.screenCenterY - (floorHeight - context.playerEyeZ) * 
+                   context.projectionDistance * WORLD_SCALE / distance;
+    geom.topY = context.screenCenterY - (ceilingHeight - context.playerEyeZ) * 
+                context.projectionDistance * WORLD_SCALE / distance;
+
+    const float wallScreenHeight = std::max(0.1f, geom.bottomY - geom.topY);
+    const float textureHeight = wallTexture_ ? static_cast<float>(wallTexture_->getSize().y) : 64.f;
+    const float zoomFactor = 2.f;
+    geom.screenScaleFactor = (textureHeight * zoomFactor) / wallScreenHeight;
+    geom.textureX = calculateTextureX(wall, hitPoint);
+
+    return geom;
+}
+
+sf::Color SectorRenderer::calculateWallColor(float distance, const Sector& sector, 
+                                            bool hitSide) const {
+    const float worldDist = distance / TILE_SIZE;
+    float brightness = std::max(0.3f, 1.0f - (worldDist / renderDistance_));
+    
+    if (hitSide) {
+        brightness *= 0.7f;
+    }
+    
+    brightness *= (sector.getLightLevel() / 255.0f);
+    const uint8_t colorValue = static_cast<uint8_t>(255 * brightness);
+    
+    return sf::Color(colorValue, colorValue, colorValue);
+}
+
+void SectorRenderer::renderSolidWall(int x,
+                                    const ClipRegion& clip,
+                                    const WallGeometry& geom,
+                                    sf::Color color,
+                                    const Wall* wall) {
+    const float wallTop = std::max(clip.top, geom.topY);
+    const float wallBottom = std::min(clip.bottom, geom.bottomY);
+    
+    if (wallTop < wallBottom) {
+        // If wall specified, try to use its texture
+        if (wall) {
+            const std::string& texName = wall->getMiddleTexture();
+            const sf::Texture* currentTex = getTextureByName(texName);
+            if (currentTex) {
+                drawWallSegmentWithTexture(x, wallTop, wallBottom, geom, color, currentTex);
+                return;
+            }
+        }
+        drawWallSegment(x, wallTop, wallBottom, geom, color);
+    }
+}
+
+void SectorRenderer::renderPortalWalls(int x,
+                                      const ClipRegion& clip,
+                                      const RenderContext& context,
+                                      const Sector& currentSector,
+                                      const Sector& neighborSector,
+                                      const WallGeometry& geom,
+                                      sf::Color color,
+                                      float distance,
+                                      const Wall* wall) {
+    const float WORLD_SCALE = TILE_SIZE;
+    const float neighborFloor = neighborSector.getFloorHeight();
+    const float neighborCeiling = neighborSector.getCeilingHeight();
+
+    const float neighborFloorY = context.screenCenterY - (neighborFloor - context.playerEyeZ) * 
+                                 context.projectionDistance * WORLD_SCALE / distance;
+    const float neighborCeilingY = context.screenCenterY - (neighborCeiling - context.playerEyeZ) * 
+                                   context.projectionDistance * WORLD_SCALE / distance;
+
+    // Верхняя стена (если потолок соседа ниже текущего)
+    if (neighborCeiling < currentSector.getCeilingHeight()) {
+        const float upperTop = std::max(clip.top, geom.topY);
+        const float upperBottom = std::min(clip.bottom, neighborCeilingY);
+        
+        if (upperTop < upperBottom) {
+            if (wall) {
+                const std::string& upperTexName = wall->getUpperTexture();
+                const sf::Texture* upperTex = getTextureByName(upperTexName);
+                if (upperTex) {
+                    drawWallSegmentWithTexture(x, upperTop, upperBottom, geom, color, upperTex);
+                } else {
+                    drawWallSegment(x, upperTop, upperBottom, geom, color);
+                }
+            } else {
+                drawWallSegment(x, upperTop, upperBottom, geom, color);
             }
         }
     }
 
-    columnVertices_.resize(vertexIndex);
-
-    sf::RenderStates states;
-    if (wallTexture_) states.texture = wallTexture_;
-    target.draw(columnVertices_, states);
-
-    columnVertices_.resize(screenWidth_ * 6 * 10);
+    // Нижняя стена (если пол соседа выше текущего)
+    if (neighborFloor > currentSector.getFloorHeight()) {
+        const float lowerTop = std::max(clip.top, neighborFloorY);
+        const float lowerBottom = std::min(clip.bottom, geom.bottomY);
+        
+        if (lowerTop < lowerBottom) {
+            if (wall) {
+                const std::string& lowerTexName = wall->getLowerTexture();
+                const sf::Texture* lowerTex = getTextureByName(lowerTexName);
+                if (lowerTex) {
+                    drawWallSegmentWithTexture(x, lowerTop, lowerBottom, geom, color, lowerTex);
+                } else {
+                    drawWallSegment(x, lowerTop, lowerBottom, geom, color);
+                }
+            } else {
+                drawWallSegment(x, lowerTop, lowerBottom, geom, color);
+            }
+        }
+    }
 }
 
-void SectorRenderer::drawWallSegment(size_t& vertexIndex, int x,
-                                     float top, float bottom, 
-                                     float anchorTopY, float screenScaleFactor,
-                                     float wallX, sf::Color color) {
+ClipRegion SectorRenderer::calculatePortalClip(const ClipRegion& currentClip,
+                                               float currentCeilingY, float currentFloorY,
+                                               float neighborCeilingY, float neighborFloorY) const {
+    ClipRegion newClip;
+    newClip.top = std::max(currentClip.top, std::max(currentCeilingY, neighborCeilingY));
+    newClip.bottom = std::min(currentClip.bottom, std::min(currentFloorY, neighborFloorY));
+    return newClip;
+}
+
+void SectorRenderer::drawWallSegmentWithTexture(int x,
+                                                float top, float bottom,
+                                                const WallGeometry& geom,
+                                                sf::Color color,
+                                                const sf::Texture* texture) {
     if (top >= bottom) return;
-    if (vertexIndex + 6 > columnVertices_.getVertexCount()) return;
+    if (!texture) texture = wallTexture_; // Fallback
+    if (!texture) {
+        std::cerr << "[SectorRenderer] WARNING: No texture available for rendering!" << std::endl;
+        return;  // Cannot render without texture
+    }
     
-    float textureWidth = wallTexture_ ? static_cast<float>(wallTexture_->getSize().x) : 64.f;
-    float textureHeight = wallTexture_ ? static_cast<float>(wallTexture_->getSize().y) : 64.f;
+    float textureWidth = static_cast<float>(texture->getSize().x);
+    float texX = geom.textureX * textureWidth;
     
-    float texX = wallX * textureWidth;
-    
-    float texYStart = (top - anchorTopY) * screenScaleFactor;
-    float texYEnd = (bottom - anchorTopY) * screenScaleFactor;
+    float texYStart = (top - geom.topY) * geom.screenScaleFactor;
+    float texYEnd = (bottom - geom.topY) * geom.screenScaleFactor;
 
     float left = static_cast<float>(x);
     float right = left + 1.f;
 
-    if (vertexIndex + 6 > columnVertices_.getVertexCount()) {
-        return;
+    // Add vertices to the batch for this specific texture
+    auto& batch = textureBatches_[texture];
+    
+    // Reserve space if this is a new batch to avoid reallocations
+    if (batch.empty()) {
+        batch.reserve(screenWidth_ * 6);  // Rough estimate
     }
+    
+    sf::Vertex v1, v2, v3, v4, v5, v6;
+    
+    v1.position = sf::Vector2f(left, top);
+    v1.color = color;
+    v1.texCoords = sf::Vector2f(texX, texYStart);
+    
+    v2.position = sf::Vector2f(left, bottom);
+    v2.color = color;
+    v2.texCoords = sf::Vector2f(texX, texYEnd);
+    
+    v3.position = sf::Vector2f(right, top);
+    v3.color = color;
+    v3.texCoords = sf::Vector2f(texX, texYStart);
+    
+    v4.position = sf::Vector2f(right, top);
+    v4.color = color;
+    v4.texCoords = sf::Vector2f(texX, texYStart);
+    
+    v5.position = sf::Vector2f(left, bottom);
+    v5.color = color;
+    v5.texCoords = sf::Vector2f(texX, texYEnd);
+    
+    v6.position = sf::Vector2f(right, bottom);
+    v6.color = color;
+    v6.texCoords = sf::Vector2f(texX, texYEnd);
+    
+    batch.push_back(v1);
+    batch.push_back(v2);
+    batch.push_back(v3);
+    batch.push_back(v4);
+    batch.push_back(v5);
+    batch.push_back(v6);
+}
 
-    columnVertices_[vertexIndex + 0] = sf::Vertex({left, top}, color, {texX, texYStart});
-    columnVertices_[vertexIndex + 1] = sf::Vertex({left, bottom}, color, {texX, texYEnd});
-    columnVertices_[vertexIndex + 2] = sf::Vertex({right, top}, color, {texX, texYStart});
-    
-    columnVertices_[vertexIndex + 3] = sf::Vertex({right, top}, color, {texX, texYStart});
-    columnVertices_[vertexIndex + 4] = sf::Vertex({left, bottom}, color, {texX, texYEnd});
-    columnVertices_[vertexIndex + 5] = sf::Vertex({right, bottom}, color, {texX, texYEnd});
-    
-    vertexIndex += 6;
+void SectorRenderer::drawWallSegment(int x,
+                                     float top, float bottom,
+                                     const WallGeometry& geom,
+                                     sf::Color color) {
+    // Use wallTexture_ as fallback
+    drawWallSegmentWithTexture(x, top, bottom, geom, color, wallTexture_);
 }
 
 void SectorRenderer::drawBackground(sf::RenderTarget& target, const Sector* sector) {
@@ -236,189 +415,81 @@ void SectorRenderer::drawBackground(sf::RenderTarget& target, const Sector* sect
 
     sf::VertexArray floorGradient(sf::PrimitiveType::Triangles, 6);
     
-    float floorHeight = static_cast<float>(screenHeight_) - horizonY;
-    
     sf::Color farColor(FLOOR_R / 4, FLOOR_G / 4, FLOOR_B / 4);
     sf::Color nearColor(FLOOR_R, FLOOR_G, FLOOR_B);
     
-    floorGradient[0] = sf::Vertex({0.f, horizonY}, farColor);
-    floorGradient[1] = sf::Vertex({0.f, static_cast<float>(screenHeight_)}, nearColor);
-    floorGradient[2] = sf::Vertex({static_cast<float>(screenWidth_), horizonY}, farColor);
+    const float screenWidthF = static_cast<float>(screenWidth_);
+    const float screenHeightF = static_cast<float>(screenHeight_);
     
-    floorGradient[3] = sf::Vertex({static_cast<float>(screenWidth_), horizonY}, farColor);
-    floorGradient[4] = sf::Vertex({0.f, static_cast<float>(screenHeight_)}, nearColor);
-    floorGradient[5] = sf::Vertex({static_cast<float>(screenWidth_), static_cast<float>(screenHeight_)}, nearColor);
+    floorGradient[0].position = sf::Vector2f(0.f, horizonY);
+    floorGradient[0].color = farColor;
+    
+    floorGradient[1].position = sf::Vector2f(0.f, screenHeightF);
+    floorGradient[1].color = nearColor;
+    
+    floorGradient[2].position = sf::Vector2f(screenWidthF, horizonY);
+    floorGradient[2].color = farColor;
+    
+    floorGradient[3].position = sf::Vector2f(screenWidthF, horizonY);
+    floorGradient[3].color = farColor;
+    
+    floorGradient[4].position = sf::Vector2f(0.f, screenHeightF);
+    floorGradient[4].color = nearColor;
+    
+    floorGradient[5].position = sf::Vector2f(screenWidthF, screenHeightF);
+    floorGradient[5].color = nearColor;
     
     target.draw(floorGradient);
 }
 
-void SectorRenderer::drawTexturedColumn(int x, float wallTopY, float wallBottomY, float wallX, 
-                                        sf::Color color, float texYStart, float texYEnd) {
-    float drawStart = std::max(0.0f, wallTopY);
-    float drawEnd = std::min(static_cast<float>(screenHeight_), wallBottomY);
-
-    if (drawStart >= drawEnd || wallTopY >= wallBottomY) {
-        return;
-    }
-
-    float textureWidth = wallTexture_ ? static_cast<float>(wallTexture_->getSize().x) : 64.f;
-    float textureHeight = wallTexture_ ? static_cast<float>(wallTexture_->getSize().y) : 64.f;
+bool SectorRenderer::checkRayWallIntersection(sf::Vector2f origin,
+                                               sf::Vector2f direction,
+                                               const Wall& wall,
+                                               float& distance,
+                                               bool& side) const {
+    const sf::Vector2f wallDir = wall.getEnd() - wall.getStart();
+    const float denom = direction.x * wallDir.y - direction.y * wallDir.x;
     
-    float texX = wallX * textureWidth;
-    float wallScreenHeight = wallBottomY - wallTopY;
-    float wallWorldHeight = texYEnd - texYStart;
-    
-    float topClipRatio = (drawStart - wallTopY) / wallScreenHeight;
-    float bottomClipRatio = (drawEnd - wallTopY) / wallScreenHeight;
-    
-    float texY_start = (texYStart + topClipRatio * wallWorldHeight) * textureHeight / 3.0f;
-    float texY_end = (texYStart + bottomClipRatio * wallWorldHeight) * textureHeight / 3.0f;
-
-    float left = static_cast<float>(x);
-    float right = static_cast<float>(x + 1);
-    int idx = x * 6;
-
-    columnVertices_[idx + 0] = sf::Vertex({left, drawStart}, color, {texX, texY_start});
-    columnVertices_[idx + 1] = sf::Vertex({left, drawEnd}, color, {texX, texY_end});
-    columnVertices_[idx + 2] = sf::Vertex({right, drawStart}, color, {texX, texY_start});
-    
-    columnVertices_[idx + 3] = sf::Vertex({right, drawStart}, color, {texX, texY_start});
-    columnVertices_[idx + 4] = sf::Vertex({left, drawEnd}, color, {texX, texY_end});
-    columnVertices_[idx + 5] = sf::Vertex({right, drawEnd}, color, {texX, texY_end});
-}
-
-void SectorRenderer::drawFloorCeilingColumn(int x, float topY, float bottomY, sf::Color color, bool isFloor) {
-    float drawStart = std::max(0.0f, topY);
-    float drawEnd = std::min(static_cast<float>(screenHeight_), bottomY);
-    
-    float left = static_cast<float>(x);
-    float right = static_cast<float>(x + 1);
-    
-    int idx = x * 12 + (isFloor ? 0 : 6);
-    
-    if (drawStart >= drawEnd) {
-        for(int i = 0; i < 6; ++i) {
-            floorCeilingVertices_[idx + i] = sf::Vertex(sf::Vector2f(0, 0), sf::Color::Transparent);
-        }
-        return;
-    }
-    
-    floorCeilingVertices_[idx + 0] = sf::Vertex({left, drawStart}, color);
-    floorCeilingVertices_[idx + 1] = sf::Vertex({left, drawEnd}, color);
-    floorCeilingVertices_[idx + 2] = sf::Vertex({right, drawStart}, color);
-    
-    floorCeilingVertices_[idx + 3] = sf::Vertex({right, drawStart}, color);
-    floorCeilingVertices_[idx + 4] = sf::Vertex({left, drawEnd}, color);
-    floorCeilingVertices_[idx + 5] = sf::Vertex({right, drawEnd}, color);
-}
-
-bool SectorRenderer::castRay(const Sector& sector,
-                             sf::Vector2f origin,
-                             sf::Vector2f direction,
-                             float& distance,
-                             const Wall*& hitWall,
-                             bool& hitSide,
-                             const Sector** hitSector,
-                             int maxDepth) {
-    
-    float closestDist = renderDistance_ * TILE_SIZE;
-    const Wall* closestWall = nullptr;
-    bool closestSide = false;
-    const Sector* closestSector = &sector;
-
-    for (const auto& wall : sector.getWalls()) {
-        float dist = 0.0f;
-        bool side = false;
-        
-        if (rayWallIntersection(origin, direction, wall, dist, side)) {
-            if (dist < closestDist && dist > 0.01f) {
-                if (wall.isPortal() && maxDepth > 0) {
-                    Sector* neighbor = wall.getNeighborSector();
-                    if (neighbor) {
-                        sf::Vector2f newOrigin = origin + direction * (dist + 0.1f);
-                        float neighborDist = 0.0f;
-                        const Wall* neighborWall = nullptr;
-                        bool neighborSide = false;
-                        const Sector* neighborHitSector = nullptr;
-                        
-                        if (castRay(*neighbor, newOrigin, direction, neighborDist, 
-                                   neighborWall, neighborSide, &neighborHitSector, maxDepth - 1)) {
-                            float totalDist = dist + neighborDist;
-                            if (totalDist < closestDist) {
-                                closestDist = totalDist;
-                                closestWall = neighborWall;
-                                closestSide = neighborSide;
-                                closestSector = neighborHitSector;
-                            }
-                        }
-                    }
-                } else {
-                    closestDist = dist;
-                    closestWall = &wall;
-                    closestSide = side;
-                    closestSector = &sector;
-                }
-            }
-        }
-    }
-
-    if (closestWall) {
-        distance = closestDist;
-        hitWall = closestWall;
-        hitSide = closestSide;
-        if (hitSector) *hitSector = closestSector;
-        return true;
-    }
-
-    return false;
-}
-
-bool SectorRenderer::rayWallIntersection(sf::Vector2f origin,
-                                         sf::Vector2f direction,
-                                         const Wall& wall,
-                                         float& distance,
-                                         bool& side) {
-    
-    sf::Vector2f p1 = wall.getStart();
-    sf::Vector2f p2 = wall.getEnd();
-    sf::Vector2f wallDir = p2 - p1;
-
-    float denom = direction.x * wallDir.y - direction.y * wallDir.x;
-    
-    if (std::abs(denom) < 0.0001f) {
+    // Параллельные линии
+    const float EPSILON = 0.0001f;
+    if (std::abs(denom) < EPSILON) {
         return false;
     }
 
-    sf::Vector2f diff = p1 - origin;
-    float t = (diff.x * wallDir.y - diff.y * wallDir.x) / denom;
-    float s = (diff.x * direction.y - diff.y * direction.x) / denom;
+    const sf::Vector2f diff = wall.getStart() - origin;
+    const float t = (diff.x * wallDir.y - diff.y * wallDir.x) / denom;
+    const float s = (diff.x * direction.y - diff.y * direction.x) / denom;
 
-    if (t > 0.0f && s >= 0.0f && s <= 1.0f) {
-        distance = t;
-        sf::Vector2f normal = wall.getNormal();
-        side = (direction.x * normal.x + direction.y * normal.y) > 0;
-        return true;
+    // Проверка пересечения
+    const bool validIntersection = (t > 0.0f) && (s >= 0.0f) && (s <= 1.0f);
+    if (!validIntersection) {
+        return false;
     }
-
-    return false;
+    
+    distance = t;
+    const sf::Vector2f normal = wall.getNormal();
+    side = (direction.x * normal.x + direction.y * normal.y) > 0;
+    return true;
 }
 
-float SectorRenderer::calculateTextureX(const Wall& wall, sf::Vector2f hitPoint, bool /*hitSide*/) {
-    sf::Vector2f start = wall.getStart();
-    sf::Vector2f end = wall.getEnd();
+float SectorRenderer::calculateTextureX(const Wall& wall, sf::Vector2f hitPoint) const {
+    const sf::Vector2f wallDir = wall.getEnd() - wall.getStart();
+    const float wallLengthSq = wallDir.x * wallDir.x + wallDir.y * wallDir.y;
     
-    sf::Vector2f wallDir = end - start;
-    float wallLengthSq = wallDir.x * wallDir.x + wallDir.y * wallDir.y;
-    if (wallLengthSq < 0.0001f) return 0.0f;
+    const float EPSILON = 0.0001f;
+    if (wallLengthSq < EPSILON) {
+        return 0.0f;
+    }
     
-    sf::Vector2f toHit = hitPoint - start;
-    float t = (toHit.x * wallDir.x + toHit.y * wallDir.y) / wallLengthSq;
-    
-    float wallLength = std::sqrt(wallLengthSq);
-    float distAlongWall = t * wallLength;
+    const sf::Vector2f toHit = hitPoint - wall.getStart();
+    const float t = (toHit.x * wallDir.x + toHit.y * wallDir.y) / wallLengthSq;
+    const float wallLength = std::sqrt(wallLengthSq);
+    const float distAlongWall = t * wallLength;
     
     float wallX = std::fmod(distAlongWall, TILE_SIZE) / TILE_SIZE;
-    if (wallX < 0.0f) wallX += 1.0f;
+    if (wallX < 0.0f) {
+        wallX += 1.0f;
+    }
     
     return wallX;
 }

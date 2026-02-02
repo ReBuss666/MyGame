@@ -1,0 +1,131 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [ main, master, feature/* ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Update system and install dependencies
+      run: |
+        pacman -Syu --noconfirm
+        pacman -S --noconfirm base-devel gcc git sfml
+    
+    - name: Build project
+      run: |
+        mkdir -p build
+        g++ -c -std=c++17 -O2 -Wall -Iinclude src/main.cpp -o build/main.o
+        g++ -c -std=c++17 -O2 -Wall -Iinclude src/Rendering/FireEffect.cpp -o build/FireEffect.o
+        g++ -c -std=c++17 -O2 -Wall -Iinclude src/Rendering/SectorRenderer.cpp -o build/SectorRenderer.o
+        g++ -c -std=c++17 -O2 -Wall -Iinclude src/States/MenuState.cpp -o build/MenuState.o
+        g++ -c -std=c++17 -O2 -Wall -Iinclude src/weapon/pistol.cpp -o build/pistol.o
+        g++ -o MyGame build/main.o build/FireEffect.o build/SectorRenderer.o build/MenuState.o build/pistol.o \
+            -lsfml-graphics -lsfml-window -lsfml-audio -lsfml-network -lsfml-system
+    
+    - name: Run tests
+      run: |
+        # Добавьте здесь команды для запуска тестов
+        echo "Tests would run here"
+    
+    - name: Upload Linux artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: MyGame-Linux
+        path: |
+          MyGame
+          assets/
+          settings.cfg
+        retention-days: 90
+
+  build-windows-mingw:
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Install MinGW cross-compiler and dependencies
+      run: |
+        pacman -Syu --noconfirm
+        pacman -S --noconfirm base-devel mingw-w64-gcc git cmake make \
+          mingw-w64-flac mingw-w64-libogg mingw-w64-libvorbis mingw-w64-openal \
+          mingw-w64-freetype2 mingw-w64-harfbuzz
+    
+    - name: Create toolchain file
+      run: |
+        cat > /tmp/mingw-toolchain.cmake << 'EOF'
+        set(CMAKE_SYSTEM_NAME Windows)
+        set(CMAKE_C_COMPILER x86_64-w64-mingw32-gcc)
+        set(CMAKE_CXX_COMPILER x86_64-w64-mingw32-g++)
+        set(CMAKE_RC_COMPILER x86_64-w64-mingw32-windres)
+        set(CMAKE_FIND_ROOT_PATH /usr/x86_64-w64-mingw32)
+        set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+        set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+        set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+        EOF
+    
+    - name: Download and build SFML for Windows
+      run: |
+        git clone --depth 1 --branch master https://github.com/SFML/SFML.git /tmp/SFML
+        mkdir /tmp/SFML-build
+        cd /tmp/SFML-build
+        cmake -DCMAKE_TOOLCHAIN_FILE=/tmp/mingw-toolchain.cmake \
+              -DCMAKE_INSTALL_PREFIX=/usr/x86_64-w64-mingw32 \
+              -DBUILD_SHARED_LIBS=TRUE \
+              -DSFML_BUILD_EXAMPLES=FALSE \
+              -DSFML_BUILD_DOC=FALSE \
+              -DSFML_BUILD_NETWORK=FALSE \
+              -DCMAKE_BUILD_TYPE=Release \
+              /tmp/SFML
+        make -j1
+        make install
+    
+    - name: Build project for Windows
+      run: |
+        mkdir -p build
+        x86_64-w64-mingw32-g++ -c -std=c++17 -O2 -Wall -Iinclude -I/usr/x86_64-w64-mingw32/include \
+            src/main.cpp -o build/main.o
+        x86_64-w64-mingw32-g++ -c -std=c++17 -O2 -Wall -Iinclude -I/usr/x86_64-w64-mingw32/include \
+            src/Rendering/FireEffect.cpp -o build/FireEffect.o
+        x86_64-w64-mingw32-g++ -c -std=c++17 -O2 -Wall -Iinclude -I/usr/x86_64-w64-mingw32/include \
+            src/Rendering/SectorRenderer.cpp -o build/SectorRenderer.o
+        x86_64-w64-mingw32-g++ -c -std=c++17 -O2 -Wall -Iinclude -I/usr/x86_64-w64-mingw32/include \
+            src/States/MenuState.cpp -o build/MenuState.o
+        x86_64-w64-mingw32-g++ -c -std=c++17 -O2 -Wall -Iinclude -I/usr/x86_64-w64-mingw32/include \
+            src/weapon/pistol.cpp -o build/pistol.o
+        x86_64-w64-mingw32-g++ -o MyGame.exe \
+            build/main.o build/FireEffect.o build/SectorRenderer.o build/MenuState.o build/pistol.o \
+            -L/usr/x86_64-w64-mingw32/lib \
+            -lsfml-graphics -lsfml-window -lsfml-audio -lsfml-system \
+            -lopengl32 -lwinmm -lgdi32 -static-libgcc -static-libstdc++
+    
+    - name: Copy SFML DLLs
+      run: |
+        cp /usr/x86_64-w64-mingw32/bin/*.dll . || true
+    
+    - name: Run tests
+      run: |
+        echo "Tests would run here (wine could be used for Windows binaries)"
+    
+    - name: Upload Windows MinGW artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: MyGame-Windows-MinGW
+        path: |
+          MyGame.exe
+          *.dll
+          assets/
+          settings.cfg
+        retention-days: 90

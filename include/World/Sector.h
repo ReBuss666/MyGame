@@ -4,6 +4,7 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include <algorithm>
 
 class Sector {
 public:
@@ -11,18 +12,18 @@ public:
         : id_(-1)
         , floorHeight_(0.0f)
         , ceilingHeight_(2.5f)
-        , lightLevel_(255)
         , floorTexture_("")
         , ceilingTexture_("")
+        , lightLevel_(255)
     {}
 
     Sector(int id, float floorHeight, float ceilingHeight)
         : id_(id)
         , floorHeight_(floorHeight)
         , ceilingHeight_(ceilingHeight)
-        , lightLevel_(255)
         , floorTexture_("")
         , ceilingTexture_("")
+        , lightLevel_(255)
     {}
 
     int getId() const { return id_; }
@@ -96,10 +97,10 @@ public:
             sf::Vector2f start = wall.getStart();
             sf::Vector2f end = wall.getEnd();
 
-            minX = std::min({minX, start.x, end.x});
-            maxX = std::max({maxX, start.x, end.x});
-            minY = std::min({minY, start.y, end.y});
-            maxY = std::max({maxY, start.y, end.y});
+            minX = std::min(minX, std::min(start.x, end.x));
+            maxX = std::max(maxX, std::max(start.x, end.x));
+            minY = std::min(minY, std::min(start.y, end.y));
+            maxY = std::max(maxY, std::max(start.y, end.y));
         }
 
         return sf::FloatRect({minX, minY}, {maxX - minX, maxY - minY});

@@ -5,9 +5,9 @@
 void MenuState::onEnter() {
     std::cout << "=== MenuState: Loading resources ===" << std::endl;
 
-    std::cout << "[MenuState] Loading logo from: ../assets/logo.png" << std::endl;
+    std::cout << "[MenuState] Loading logo from: assets/logo.png" << std::endl;
     
-    logoTexture_ = ResourceManager::getInstance().getTexture("../assets/logo.png");
+    logoTexture_ = ResourceManager::getInstance().getTexture("assets/logo.png");
     
     if (!logoTexture_) {
         std::cerr << "[MenuState] FAILED to load logo texture!" << std::endl;
@@ -42,6 +42,23 @@ void MenuState::onEnter() {
     buttonsFadeAlpha_ = 0.f;
     for (auto& button : buttons_) {
         button->setAlpha(0.f);
+    }
+
+    // Initialize available maps from assets/maps/ directory
+    loadAvailableMaps();
+    selectedMapIndex_ = 0;
+
+    // Setup map name text
+    menuFont_ = ResourceManager::getInstance().getFont(Assets::FONT_PRIMARY);
+    if (menuFont_) {
+        mapNameText_ = std::make_unique<sf::Text>(*menuFont_, "< " + availableMaps_[selectedMapIndex_] + " >", 24);
+        mapNameText_->setFillColor(sf::Color(255, 200, 100));
+        mapNameText_->setOutlineColor(sf::Color::Black);
+        mapNameText_->setOutlineThickness(2.f);
+        
+        sf::FloatRect textBounds = mapNameText_->getLocalBounds();
+        mapNameText_->setOrigin({textBounds.size.x / 2.f, textBounds.size.y / 2.f});
+        mapNameText_->setPosition({WINDOW_CENTER_X, MENU_BUTTON_START_Y - 60.f});
     }
     
     totalTime_ = 0.f;
@@ -90,6 +107,18 @@ void MenuState::handleInput(const sf::Event& event) {
             );
         }
         return;
+    }
+
+    // Handle map selection with arrow keys
+    if (const auto* keyPressed = event.getIf<sf::Event::KeyPressed>()) {
+        if (keyPressed->code == sf::Keyboard::Key::Left) {
+            cycleMap(-1);
+            return;
+        }
+        else if (keyPressed->code == sf::Keyboard::Key::Right) {
+            cycleMap(1);
+            return;
+        }
     }
 
     if (const auto* mousePressed = event.getIf<sf::Event::MouseButtonPressed>()) {
@@ -163,6 +192,13 @@ void MenuState::update(float deltaTime) {
         for (auto& button : buttons_) {
             button->update(mousePos_);
         }
+        
+        // Update map name text alpha
+        if (mapNameText_) {
+            sf::Color textColor = mapNameText_->getFillColor();
+            textColor.a = static_cast<uint8_t>(buttonsFadeAlpha_);
+            mapNameText_->setFillColor(textColor);
+        }
     }
 }
 
@@ -181,6 +217,11 @@ void MenuState::render(sf::RenderWindow& window) {
 
     for (auto& button : buttons_) {
         button->render(window);
+    }
+
+    // Render map selection text
+    if (logoAnimationComplete_ && menuFont_ && mapNameText_) {
+        window.draw(*mapNameText_);
     }
 }
 
@@ -210,6 +251,26 @@ void MenuState::skipAnimation() {
 void MenuState::handleButtonClick(const std::string& buttonName) {
     if (buttonName == "Start Game") {
         std::cout << ">>> Start Game clicked <<<" << std::endl;
+        std::cout << ">>> Selected map: " << availableMaps_[selectedMapIndex_] << " <<<" << std::endl;
+        
+        // Convert map name back to filename (lowercase, spaces to underscores)
+        std::string mapFileName = availableMaps_[selectedMapIndex_];
+        for (char& c : mapFileName) {
+            if (c == ' ') {
+                c = '_';
+            } else {
+                c = static_cast<char>(std::tolower(c));
+            }
+        }
+        
+        std::string mapPath = "assets/maps/" + mapFileName + ".json";
+        std::cout << ">>> Map file: " << mapPath << " <<<" << std::endl;
+        
+        // Update StateManager with selected map file
+        if (stateManager_) {
+            stateManager_->setMapPath(mapPath);
+        }
+        
         stateManager_->pushState("Play");
     } 
     else if (buttonName == "Options") {
@@ -219,5 +280,71 @@ void MenuState::handleButtonClick(const std::string& buttonName) {
     else if (buttonName == "Exit") {
         std::cout << ">>> Exit clicked <<<" << std::endl;
         stateManager_->exitGame();
+    }
+}
+
+void MenuState::cycleMap(int direction) {
+    selectedMapIndex_ += direction;
+    
+    if (selectedMapIndex_ < 0) {
+        selectedMapIndex_ = static_cast<int>(availableMaps_.size()) - 1;
+    } else if (selectedMapIndex_ >= static_cast<int>(availableMaps_.size())) {
+        selectedMapIndex_ = 0;
+    }
+    
+    if (mapNameText_) {
+        mapNameText_->setString("< " + availableMaps_[selectedMapIndex_] + " >");
+        sf::FloatRect textBounds = mapNameText_->getLocalBounds();
+        mapNameText_->setOrigin({textBounds.size.x / 2.f, textBounds.size.y / 2.f});
+    }
+    
+    std::cout << "[MenuState] Selected map: " << availableMaps_[selectedMapIndex_] << std::endl;
+}
+
+void MenuState::loadAvailableMaps() {
+    availableMaps_.clear();
+    
+    const std::string mapsPath = "assets/maps";
+    
+    try {
+        if (!std::filesystem::exists(mapsPath)) {
+            std::cerr << "[MenuState] Maps directory not found: " << mapsPath << std::endl;
+            availableMaps_.push_back("No Maps Found");
+            return;
+        }
+        
+        // Scan directory for .json files
+        for (const auto& entry : std::filesystem::directory_iterator(mapsPath)) {
+            if (entry.is_regular_file() && entry.path().extension() == ".json") {
+                // Get filename without extension
+                std::string mapName = entry.path().stem().string();
+                
+                // Convert underscores to spaces and capitalize
+                for (size_t i = 0; i < mapName.length(); ++i) {
+                    if (mapName[i] == '_') {
+                        mapName[i] = ' ';
+                    }
+                    if (i == 0 || mapName[i-1] == ' ') {
+                        mapName[i] = static_cast<char>(std::toupper(mapName[i]));
+                    }
+                }
+                
+                availableMaps_.push_back(mapName);
+                std::cout << "[MenuState] Found map: " << mapName << " (" << entry.path().filename().string() << ")" << std::endl;
+            }
+        }
+        
+        // Sort maps alphabetically
+        std::sort(availableMaps_.begin(), availableMaps_.end());
+        
+        if (availableMaps_.empty()) {
+            std::cerr << "[MenuState] No .json maps found in " << mapsPath << std::endl;
+            availableMaps_.push_back("No Maps Available");
+        } else {
+            std::cout << "[MenuState] Loaded " << availableMaps_.size() << " map(s)" << std::endl;
+        }
+    } catch (const std::filesystem::filesystem_error& e) {
+        std::cerr << "[MenuState] Filesystem error: " << e.what() << std::endl;
+        availableMaps_.push_back("Error Loading Maps");
     }
 }
