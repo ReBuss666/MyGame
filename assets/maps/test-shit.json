@@ -1,0 +1,198 @@
+{
+  "sectors": [
+    {
+      "id": 0,
+      "floorHeight": 0.0,
+      "ceilingHeight": 3.0,
+      "lightLevel": 255,
+      "floorTexture": "",
+      "ceilingTexture": "",
+      "flags": 0,
+      "walls": [
+        {
+          "start": [
+            -438.0,
+            -388.0
+          ],
+          "end": [
+            243.93014487638186,
+            -374.4773059089668
+          ],
+          "neighborId": null,
+          "upperTexture": "",
+          "middleTexture": "",
+          "lowerTexture": "",
+          "flags": 0
+        },
+        {
+          "start": [
+            243.93014487638186,
+            -374.4773059089668
+          ],
+          "end": [
+            238.3422974143703,
+            244.95556104261595
+          ],
+          "neighborId": null,
+          "upperTexture": "",
+          "middleTexture": "",
+          "lowerTexture": "",
+          "flags": 0
+        },
+        {
+          "start": [
+            238.3422974143703,
+            244.95556104261595
+          ],
+          "end": [
+            -438.0,
+            245.0
+          ],
+          "neighborId": null,
+          "upperTexture": "",
+          "middleTexture": "",
+          "lowerTexture": "",
+          "flags": 0
+        },
+        {
+          "start": [
+            -438.0,
+            245.0
+          ],
+          "end": [
+            -439.0,
+            -78.0
+          ],
+          "neighborId": 1,
+          "upperTexture": "",
+          "middleTexture": "",
+          "lowerTexture": "",
+          "flags": 0
+        },
+        {
+          "start": [
+            -439.0,
+            -78.0
+          ],
+          "end": [
+            -438.0,
+            -388.0
+          ],
+          "neighborId": null,
+          "upperTexture": "",
+          "middleTexture": "",
+          "lowerTexture": "",
+          "flags": 0
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "floorHeight": 0.0,
+      "ceilingHeight": 3.0,
+      "lightLevel": 255,
+      "floorTexture": "",
+      "ceilingTexture": "",
+      "flags": 0,
+      "walls": [
+        {
+          "start": [
+            -438.99681584999115,
+            -78.9870865027419
+          ],
+          "end": [
+            -438.0030959455574,
+            244.00000958497077
+          ],
+          "neighborId": 0,
+          "upperTexture": "",
+          "middleTexture": "",
+          "lowerTexture": "",
+          "flags": 0
+        },
+        {
+          "start": [
+            -438.0030959455574,
+            244.00000958497077
+          ],
+          "end": [
+            -884.6373921765972,
+            -92.74863726829938
+          ],
+          "neighborId": null,
+          "upperTexture": "",
+          "middleTexture": "",
+          "lowerTexture": "",
+          "flags": 0
+        },
+        {
+          "start": [
+            -884.6373921765972,
+            -92.74863726829938
+          ],
+          "end": [
+            -1030.2747843531945,
+            -344.99999999999994
+          ],
+          "neighborId": null,
+          "upperTexture": "",
+          "middleTexture": "",
+          "lowerTexture": "",
+          "flags": 0
+        },
+        {
+          "start": [
+            -1030.2747843531945,
+            -344.99999999999994
+          ],
+          "end": [
+            -884.6373921765974,
+            -597.2513627317005
+          ],
+          "neighborId": null,
+          "upperTexture": "",
+          "middleTexture": "",
+          "lowerTexture": "",
+          "flags": 0
+        },
+        {
+          "start": [
+            -884.6373921765974,
+            -597.2513627317005
+          ],
+          "end": [
+            -593.3626078234026,
+            -597.2513627317006
+          ],
+          "neighborId": null,
+          "upperTexture": "",
+          "middleTexture": "",
+          "lowerTexture": "",
+          "flags": 0
+        },
+        {
+          "start": [
+            -593.3626078234026,
+            -597.2513627317006
+          ],
+          "end": [
+            -438.99681584999115,
+            -78.9870865027419
+          ],
+          "neighborId": null,
+          "upperTexture": "",
+          "middleTexture": "",
+          "lowerTexture": "",
+          "flags": 0
+        }
+      ]
+    }
+  ],
+  "textures": [
+    "brick.png",
+    "stone.png",
+    "metal.png",
+    "wood.png",
+    "concrete.png"
+  ]
+}
