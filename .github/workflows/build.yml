@@ -28,7 +28,8 @@ jobs:
         g++ -c -std=c++17 -O2 -Wall -Iinclude src/Rendering/FireEffect.cpp -o build/FireEffect.o
         g++ -c -std=c++17 -O2 -Wall -Iinclude src/Rendering/SectorRenderer.cpp -o build/SectorRenderer.o
         g++ -c -std=c++17 -O2 -Wall -Iinclude src/States/MenuState.cpp -o build/MenuState.o
-        g++ -o MyGame build/main.o build/FireEffect.o build/SectorRenderer.o build/MenuState.o \
+        g++ -c -std=c++17 -O2 -Wall -Iinclude src/weapon/pistol.cpp -o build/pistol.o
+        g++ -o MyGame build/main.o build/FireEffect.o build/SectorRenderer.o build/MenuState.o build/pistol.o \
             -lsfml-graphics -lsfml-window -lsfml-audio -lsfml-network -lsfml-system
     
     - name: Run tests
@@ -102,8 +103,10 @@ jobs:
             src/Rendering/SectorRenderer.cpp -o build/SectorRenderer.o
         x86_64-w64-mingw32-g++ -c -std=c++17 -O2 -Wall -Iinclude -I/usr/x86_64-w64-mingw32/include \
             src/States/MenuState.cpp -o build/MenuState.o
+        x86_64-w64-mingw32-g++ -c -std=c++17 -O2 -Wall -Iinclude -I/usr/x86_64-w64-mingw32/include \
+            src/weapon/pistol.cpp -o build/pistol.o
         x86_64-w64-mingw32-g++ -o MyGame.exe \
-            build/main.o build/FireEffect.o build/SectorRenderer.o build/MenuState.o \
+            build/main.o build/FireEffect.o build/SectorRenderer.o build/MenuState.o build/pistol.o \
             -L/usr/x86_64-w64-mingw32/lib \
             -lsfml-graphics -lsfml-window -lsfml-audio -lsfml-system \
             -lopengl32 -lwinmm -lgdi32 -static-libgcc -static-libstdc++
