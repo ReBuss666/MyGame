@@ -101,6 +101,8 @@ namespace Assets {
     
     inline constexpr const char* SOUND_MENU_CLICK = "../assets/sounds/menu_click.wav";
     inline constexpr const char* SOUND_BUTTON_HOVER = "../assets/sounds/button_hover.wav";
+
+    inline constexpr const char* PISTOL_FIRE_ANIM = "../assets/weapons/pistol/";
 }
 
 #ifdef _DEBUG

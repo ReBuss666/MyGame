@@ -7,6 +7,7 @@
 #include "../Utils/settings.h"
 #include "../Entities/player.h"
 #include "../Rendering/SectorRenderer.h"
+#include "../weapon/pistol.h"
 #include <SFML/Graphics.hpp>
 #include <SFML/Window.hpp>
 #include <iostream>
@@ -87,6 +88,8 @@ public:
         std::cout << "    - TAB: Toggle 2D/3D view" << std::endl;
         std::cout << "    - M: Lock/unlock mouse" << std::endl;
         std::cout << "    - ESC: Pause menu" << std::endl;
+
+        gun_ = std::make_unique<Gun>(Assets::PISTOL_FIRE_ANIM);
     }
     
     void onExit() override {
@@ -173,6 +176,12 @@ public:
             if (mode3D_ && !mouseLocked_ && mousePressed->button == sf::Mouse::Button::Left) {
                 lockMouse();
             }
+            // Shooting with left mouse button when mouse is locked
+            if (mode3D_ && mouseLocked_ && mousePressed->button == sf::Mouse::Button::Left) {
+                if (gun_) {
+                    gun_->shoot();
+                }
+            }
         }
     }
     
@@ -194,13 +203,19 @@ public:
             if (mouseLocked_ && std::abs(mouseRotation_) > 0.001f) {
                 float currentAngle = player_->getViewAngle();
                 player_->setViewAngle(currentAngle + mouseRotation_);
+                lastMouseDeltaX_ = mouseRotation_ * 1000.f; // Усиливаем для заметного эффекта
                 mouseRotation_ = 0.f;
+            } else {
+                lastMouseDeltaX_ *= 0.9f; // Плавное затухание
             }
             
             if (mouseLocked_ && std::abs(mousePitch_) > 0.001f) {
                 float currentPitch = player_->getPitchAngle();
                 player_->setPitchAngle(currentPitch + mousePitch_);
+                lastMouseDeltaY_ = mousePitch_ * 1000.f;
                 mousePitch_ = 0.f;
+            } else {
+                lastMouseDeltaY_ *= 0.9f;
             }
 
             updatePlayerSector();
@@ -211,6 +226,14 @@ public:
                     player_->setVerticalPos(currentSector_->getFloorHeight());
                 }
             }
+        }
+        
+        // Update gun animation, bob and sway
+        if (gun_ && player_) {
+            bool isMoving = player_->isMoving();
+            bool isSprinting = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::LShift) ||
+                              sf::Keyboard::isKeyPressed(sf::Keyboard::Key::RShift);
+            gun_->update(deltaTime, isMoving, isSprinting, lastMouseDeltaX_, lastMouseDeltaY_);
         }
     }
 
@@ -245,6 +268,11 @@ public:
                 window.draw(*renderSprite_);
             }
             drawCrosshair(window);
+            
+            // Render gun on top of everything
+            if (gun_) {
+                gun_->render(window, static_cast<float>(window.getSize().x), static_cast<float>(window.getSize().y));
+            }
         } else {
             // 2D mode - set camera view centered on player
             sf::View mapView;
@@ -284,6 +312,7 @@ private:
     SectorMap sectorMap_;
     Sector* currentSector_ = nullptr;
     std::unique_ptr<SectorRenderer> sectorRenderer_;
+    std::unique_ptr<Gun> gun_;
 
     sf::RenderTexture renderTexture_;
     std::unique_ptr<sf::Sprite> renderSprite_;
@@ -299,6 +328,8 @@ private:
     bool mouseLocked_ = false;
     float mouseRotation_ = 0.f;
     float mousePitch_ = 0.f;
+    float lastMouseDeltaX_ = 0.f;  // Для передачи в Gun sway
+    float lastMouseDeltaY_ = 0.f;
 
     void updatePlayerSector() {
         Sector* newSector = sectorMap_.findSectorAt(player_->getPosition());
