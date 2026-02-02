@@ -131,3 +131,14 @@ conan/
 *.log
 *.tmp
 *.temp
+
+# Python junk (для твоего редактора карт)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Visual Studio во время работы создает огромные базы данных
+*.sdf
+*.opensdf
+*.VC.db
