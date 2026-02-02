@@ -11,9 +11,9 @@ class Button {
 public:
     Button(const std::string& text, sf::Vector2f position, sf::Vector2f size = {300.f, 60.f}) 
         : text_(text)
+        , font_(nullptr)
         , position_(position)
         , size_(size)
-        , font_(nullptr)
         , isHovered_(false)
         , alpha_(255)
     {
