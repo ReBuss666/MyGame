@@ -13,8 +13,8 @@ public:
         : text_(text)
         , position_(position)
         , size_(size)
-        , isHovered_(false)
         , font_(nullptr)
+        , isHovered_(false)
         , alpha_(255)
     {
         shape_.setSize(size_);

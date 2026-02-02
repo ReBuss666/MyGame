@@ -12,18 +12,18 @@ public:
         : id_(-1)
         , floorHeight_(0.0f)
         , ceilingHeight_(2.5f)
-        , lightLevel_(255)
         , floorTexture_("")
         , ceilingTexture_("")
+        , lightLevel_(255)
     {}
 
     Sector(int id, float floorHeight, float ceilingHeight)
         : id_(id)
         , floorHeight_(floorHeight)
         , ceilingHeight_(ceilingHeight)
-        , lightLevel_(255)
         , floorTexture_("")
         , ceilingTexture_("")
+        , lightLevel_(255)
     {}
 
     int getId() const { return id_; }
