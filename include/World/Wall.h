@@ -79,6 +79,12 @@ public:
     uint32_t getFlags() const { return flags_; }
     void setFlags(uint32_t flags) { flags_ = flags; }
 
+    sf::Color getColor() const { return color_; }
+    void setColor(sf::Color c) { color_ = c; }
+
+    int getNextSectorId() const { return nextSectorId_; }
+    void setNextSectorId(int id) { nextSectorId_ = id; }
+
 private:
     sf::Vector2f start_;
     sf::Vector2f end_;
@@ -87,4 +93,7 @@ private:
     std::string middleTexture_;
     std::string lowerTexture_;
     uint32_t flags_;
+    
+    sf::Color color_ = sf::Color::White;
+    int nextSectorId_ = -1;
 };

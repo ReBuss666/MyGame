@@ -98,6 +98,10 @@ private:
                         sf::Color color,
                         const Wall* wall = nullptr);
     
+    void renderFloorAndCeiling(int x, const ClipRegion& clip, 
+                               const WallGeometry& geom,
+                               sf::Color floorColor, sf::Color ceilColor);
+    
     void renderPortalWalls(int x,
                           const ClipRegion& clip,
                           const RenderContext& context,

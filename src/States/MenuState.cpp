@@ -76,11 +76,47 @@ void MenuState::onEnter() {
         std::cerr << "[MenuState] Failed to load sound: " << soundPath << std::endl;
     }
     
+    // Load whoosh sound
+    std::string whooshPath = "assets/sounds/whoosh.mp3";
+    if (sf::SoundBuffer* buffer = ResourceManager::getInstance().getSoundBuffer(whooshPath)) {
+        whooshSound_ = std::make_unique<sf::Sound>(*buffer);
+        whooshSound_->play();
+        std::cout << "[MenuState] Playing whoosh sound" << std::endl;
+    }
+
+    // Load fire loop sound
+    std::string firePath = "assets/sounds/campfire.mp3";
+    if (sf::SoundBuffer* buffer = ResourceManager::getInstance().getSoundBuffer(firePath)) {
+        fireLoopSound_ = std::make_unique<sf::Sound>(*buffer);
+        fireLoopSound_->setLooping(true);
+        fireLoopSound_->play();
+        std::cout << "[MenuState] Playing fire loop" << std::endl;
+    }
+
+    // Load background music
+    backgroundMusic_ = std::make_unique<sf::Music>();
+    if (backgroundMusic_->openFromFile("assets/sounds/background-next.mp3")) {
+        backgroundMusic_->setLooping(true);
+        backgroundMusic_->setVolume(20.f); // Small volume as requested
+        backgroundMusic_->play();
+        std::cout << "[MenuState] Playing background music (low volume)" << std::endl;
+    } else {
+        std::cerr << "[MenuState] Failed to load background music" << std::endl;
+    }
+
     std::cout << "=== MenuState: Loaded ===" << std::endl;
 }
 
 void MenuState::onExit() {
     std::cout << "=== MenuState: Releasing resources ===" << std::endl;
+    
+    if (fireLoopSound_) fireLoopSound_->stop();
+    if (whooshSound_) whooshSound_->stop();
+    if (backgroundMusic_) backgroundMusic_->stop();
+    fireLoopSound_.reset();
+    whooshSound_.reset();
+    backgroundMusic_.reset();
+
     buttons_.clear();
     fireEffect_.reset();
     shineSprite_.reset();
@@ -94,10 +130,17 @@ void MenuState::pause() {
     if (fireEffect_) {
         fireEffect_->disableFuel();
     }
+    if (fireLoopSound_) fireLoopSound_->pause();
+    if (backgroundMusic_) backgroundMusic_->pause();
 }
 
 void MenuState::resume() {
     std::cout << "=== MenuState: Resumed ===" << std::endl;
+    if (fireEffect_) {
+        fireEffect_->enableFuel();
+    }
+    if (fireLoopSound_) fireLoopSound_->play();
+    if (backgroundMusic_) backgroundMusic_->play();
     if (fireEffect_) {
         fireEffect_->enableFuel();
     }
@@ -263,17 +306,23 @@ void MenuState::handleButtonClick(const std::string& buttonName) {
         std::cout << ">>> Start Game clicked <<<" << std::endl;
         std::cout << ">>> Selected map: " << availableMaps_[selectedMapIndex_] << " <<<" << std::endl;
         
-        // Convert map name back to filename (lowercase, spaces to underscores)
-        std::string mapFileName = availableMaps_[selectedMapIndex_];
-        for (char& c : mapFileName) {
-            if (c == ' ') {
-                c = '_';
-            } else {
-                c = static_cast<char>(std::tolower(c));
+        std::string mapPath;
+
+        if (availableMaps_[selectedMapIndex_] == ">> GENERATE RANDOM <<") {
+            mapPath = ":random:";
+        } else {
+            // Convert map name back to filename (lowercase, spaces to underscores)
+            std::string mapFileName = availableMaps_[selectedMapIndex_];
+            for (char& c : mapFileName) {
+                if (c == ' ') {
+                    c = '_';
+                } else {
+                    c = static_cast<char>(std::tolower(c));
+                }
             }
+            mapPath = "assets/maps/" + mapFileName + ".json";
         }
         
-        std::string mapPath = "assets/maps/" + mapFileName + ".json";
         std::cout << ">>> Map file: " << mapPath << " <<<" << std::endl;
         
         // Update StateManager with selected map file
@@ -352,6 +401,9 @@ void MenuState::loadAvailableMaps() {
         
         // Sort maps alphabetically
         std::sort(availableMaps_.begin(), availableMaps_.end());
+
+        // Add "Generator" option at the beginning
+        availableMaps_.insert(availableMaps_.begin(), ">> GENERATE RANDOM <<");
         
         if (availableMaps_.empty()) {
             std::cerr << "[MenuState] No .json maps found in " << mapsPath << std::endl;

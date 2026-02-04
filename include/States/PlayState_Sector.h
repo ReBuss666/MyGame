@@ -38,26 +38,32 @@ public:
         std::cout << "[PlayState] Map path: " << mapFilePath_ << std::endl;
         
         // Try to load from JSON file directly
-        auto result = MapLoader::loadFromFile(mapFilePath_, sectorMap_, 1.0f);
-        
-        if (!result.success) {
-            std::cerr << "[PlayState] Could not load map from file: " << result.error << std::endl;
-            std::cout << "[PlayState] Using TestMapBuilder as fallback..." << std::endl;
-            
-            // Fallback to programmatic map builders based on filename
-            if (mapFilePath_.find("simple_step") != std::string::npos) {
-                sectorMap_ = TestMapBuilder::buildSimpleStepMap();
-            } else if (mapFilePath_.find("window_demo") != std::string::npos) {
-                sectorMap_ = TestMapBuilder::buildWindowMap();
-            } else if (mapFilePath_.find("complex") != std::string::npos) {
-                sectorMap_ = TestMapBuilder::buildComplexMap();
-            } else {
-                // Default fallback
-                sectorMap_ = TestMapBuilder::buildSimpleStepMap();
-            }
+        // Check for special "random" flag first
+        if (mapFilePath_ == ":random:") {
+            std::cout << "[PlayState] Generating random procedural map..." << std::endl;
+            sectorMap_ = TestMapBuilder::generateRandomMap(12, 12);
         } else {
-            std::cout << "[PlayState] Successfully loaded map from: " << mapFilePath_ << std::endl;
-            mapTextures_ = result.textureList;
+            auto result = MapLoader::loadFromFile(mapFilePath_, sectorMap_, 1.0f);
+            
+            if (!result.success) {
+                std::cerr << "[PlayState] Could not load map from file: " << result.error << std::endl;
+                std::cout << "[PlayState] Using TestMapBuilder as fallback..." << std::endl;
+                
+                // Fallback to programmatic map builders based on filename
+                if (mapFilePath_.find("simple_step") != std::string::npos) {
+                    sectorMap_ = TestMapBuilder::buildSimpleStepMap();
+                } else if (mapFilePath_.find("window_demo") != std::string::npos) {
+                    sectorMap_ = TestMapBuilder::buildWindowMap();
+                } else if (mapFilePath_.find("complex") != std::string::npos) {
+                    sectorMap_ = TestMapBuilder::buildComplexMap();
+                } else {
+                    // Default fallback
+                    sectorMap_ = TestMapBuilder::buildSimpleStepMap();
+                }
+            } else {
+                std::cout << "[PlayState] Successfully loaded map from: " << mapFilePath_ << std::endl;
+                mapTextures_ = result.textureList;
+            }
         }
         
         if (!sectorMap_.validate()) {

@@ -1,10 +1,177 @@
 #pragma once
 #include "SectorMap.h"
 #include <iostream>
+#include <vector>
+#include <stack>
+#include <random>
+#include <ctime>
 
 class TestMapBuilder {
 public:
     static constexpr float UNIT = 64.0f;
+
+    struct MazeCell {
+        bool visited = false;
+        bool walls[4] = {true, true, true, true}; // Top, Right, Bottom, Left
+        int sectorId = -1;
+    };
+
+    static SectorMap generateRandomMap(int width = 10, int height = 10) {
+        SectorMap map;
+        const float CELL_SIZE = 4.0f * UNIT; // Bigger rooms
+        
+        std::cout << "[TestMapBuilder] Generating random map " << width << "x" << height << "..." << std::endl;
+        
+        // 1. Initialize Grid
+        std::vector<MazeCell> grid(width * height);
+        std::srand(static_cast<unsigned int>(std::time(nullptr)));
+
+        // 2. Maze Generation (Recursive Backtracker)
+        std::stack<int> stack;
+        int current = 0;
+        grid[current].visited = true;
+        stack.push(current);
+
+        while (!stack.empty()) {
+            current = stack.top();
+            
+            // Find unvisited neighbors
+            std::vector<int> neighbors;
+            int cx = current % width;
+            int cy = current / width;
+            
+            // Top
+            if (cy > 0 && !grid[current - width].visited) neighbors.push_back(0);
+            // Right
+            if (cx < width - 1 && !grid[current + 1].visited) neighbors.push_back(1);
+            // Bottom
+            if (cy < height - 1 && !grid[current + width].visited) neighbors.push_back(2);
+            // Left
+            if (cx > 0 && !grid[current - 1].visited) neighbors.push_back(3);
+
+            if (!neighbors.empty()) {
+                // Choose random neighbor
+                int dir = neighbors[std::rand() % neighbors.size()];
+                int next = -1;
+
+                if (dir == 0) { // Top
+                    next = current - width;
+                    grid[current].walls[0] = false;
+                    grid[next].walls[2] = false;
+                } else if (dir == 1) { // Right
+                    next = current + 1;
+                    grid[current].walls[1] = false;
+                    grid[next].walls[3] = false;
+                } else if (dir == 2) { // Bottom
+                    next = current + width;
+                    grid[current].walls[2] = false;
+                    grid[next].walls[0] = false;
+                } else if (dir == 3) { // Left
+                    next = current - 1;
+                    grid[current].walls[3] = false;
+                    grid[next].walls[1] = false;
+                }
+
+                grid[next].visited = true;
+                stack.push(next);
+            } else {
+                stack.pop();
+            }
+        }
+
+        // 3. Convert to Sectors
+        for (int y = 0; y < height; ++y) {
+            for (int x = 0; x < width; ++x) {
+                int index = y * width + x;
+                // Random height variations
+                float floorH = (std::rand() % 5) * 0.5f; // 0.0 to 2.0
+                float ceilH = 4.0f + (std::rand() % 4) * 0.5f; // 4.0 to 5.5
+                
+                // Random sector color tint
+                sf::Color floorColor(
+                    150 + std::rand() % 100,
+                    150 + std::rand() % 100,
+                    150 + std::rand() % 100
+                );
+                
+                Sector sector(index + 1, floorH, ceilH); // IDs start at 1
+                sector.setFloorColor(floorColor);
+                sector.setCeilingColor(sf::Color(50, 50, 60)); // Dark ceiling
+                
+                // Coordinates
+                float px = x * CELL_SIZE;
+                float py = y * CELL_SIZE;
+                
+                // Walls: Top, Right, Bottom, Left
+                // Top Wall (y)
+                if (grid[index].walls[0]) {
+                    Wall w({px + CELL_SIZE, py}, {px, py});
+                    w.setColor(sf::Color::White);
+                    sector.addWall(w);
+                } else {
+                    int neighborId = (index - width) + 1;
+                    Wall w({px + CELL_SIZE, py}, {px, py});
+                    w.setColor(sf::Color::Red);
+                    w.setNextSectorId(neighborId);
+                    sector.addWall(w);
+                }
+                
+                // Left Wall (x)
+                if (grid[index].walls[3]) {
+                    Wall w({px, py}, {px, py + CELL_SIZE});
+                    w.setColor(sf::Color::White);
+                    sector.addWall(w);
+                } else {
+                     int neighborId = (index - 1) + 1;
+                    Wall w({px, py}, {px, py + CELL_SIZE});
+                    w.setColor(sf::Color::Green);
+                    w.setNextSectorId(neighborId);
+                    sector.addWall(w);
+                }
+                
+                // Bottom Wall (y + size) - Note: standard winding order
+                if (grid[index].walls[2]) {
+                    Wall w({px, py + CELL_SIZE}, {px + CELL_SIZE, py + CELL_SIZE});
+                    w.setColor(sf::Color::White);
+                    sector.addWall(w);
+                } else {
+                    int neighborId = (index + width) + 1;
+                    Wall w({px, py + CELL_SIZE}, {px + CELL_SIZE, py + CELL_SIZE});
+                    w.setColor(sf::Color::Blue);
+                    w.setNextSectorId(neighborId);
+                    sector.addWall(w);
+                }
+
+                // Right Wall (x + size)
+                if (grid[index].walls[1]) {
+                    Wall w({px + CELL_SIZE, py + CELL_SIZE}, {px + CELL_SIZE, py});
+                    w.setColor(sf::Color::White);
+                    sector.addWall(w);
+                } else {
+                    int neighborId = (index + 1) + 1;
+                    Wall w({px + CELL_SIZE, py + CELL_SIZE}, {px + CELL_SIZE, py});
+                    w.setColor(sf::Color::Yellow);
+                    w.setNextSectorId(neighborId);
+                    sector.addWall(w);
+                }
+
+                map.addSector(std::move(sector));
+                grid[index].sectorId = index + 1;
+            }
+        }
+        
+        // Resolve pointers
+        for (auto& [id, sector] : map.getSectors()) {
+            for (auto& wall : sector.getWalls()) {
+               if (wall.getNextSectorId() != -1) {
+                   wall.setNeighborSector(map.getSector(wall.getNextSectorId()));
+               }
+            }
+        }
+        
+        std::cout << "[TestMapBuilder] Generated " << map.getSectorCount() << " sectors." << std::endl;
+        return map;
+    }
 
     static SectorMap buildSimpleStepMap() {
         SectorMap map;

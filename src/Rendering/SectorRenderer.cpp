@@ -80,8 +80,9 @@ void SectorRenderer::render(sf::RenderTarget& target,
         return;
     }
 
-    // Clear texture batches for this frame
+    // Clear texture batches and geometry buffers for this frame
     textureBatches_.clear();
+    floorCeilingVertices_.clear();
 
     // Подготовка контекста рендеринга
     RenderContext context;
@@ -103,6 +104,11 @@ void SectorRenderer::render(sf::RenderTarget& target,
     
     std::cout << "[SectorRenderer] Collected " << textureBatches_.size() << " texture batches" << std::endl;
     
+    // Draw floor and ceiling geometry
+    if (floorCeilingVertices_.getVertexCount() > 0) {
+        target.draw(floorCeilingVertices_);
+    }
+
     // Draw all texture batches
     for (const auto& pair : textureBatches_) {
         const sf::Texture* tex = pair.first;
@@ -143,6 +149,21 @@ void SectorRenderer::renderColumn(int x, const RenderContext& context,
         const WallGeometry geom = calculateWallGeometry(context, correctedDist, *sector, 
                                                         *result.wall, hitPoint, result.hitSide);
         const sf::Color color = calculateWallColor(correctedDist, *sector, result.hitSide);
+
+        // Draw Floor and Ceiling
+        sf::Color floorColor = sector->getFloorColor();
+        sf::Color ceilColor = sector->getCeilingColor();
+
+        // Apply simplistic distance fog
+        float fogFactor = 1.0f / (1.0f + correctedDist * 0.05f);
+        floorColor.r = static_cast<uint8_t>(floorColor.r * fogFactor);
+        floorColor.g = static_cast<uint8_t>(floorColor.g * fogFactor);
+        floorColor.b = static_cast<uint8_t>(floorColor.b * fogFactor);        
+        ceilColor.r = static_cast<uint8_t>(ceilColor.r * fogFactor);
+        ceilColor.g = static_cast<uint8_t>(ceilColor.g * fogFactor);
+        ceilColor.b = static_cast<uint8_t>(ceilColor.b * fogFactor);
+
+        renderFloorAndCeiling(x, clip, geom, floorColor, ceilColor);
 
         if (result.wall->isPortal()) {
             Sector* neighbor = result.wall->getNeighborSector();
@@ -252,13 +273,22 @@ void SectorRenderer::renderSolidWall(int x,
     const float wallBottom = std::min(clip.bottom, geom.bottomY);
     
     if (wallTop < wallBottom) {
-        // If wall specified, try to use its texture
+        // If wall specified, try to use its texture or color
         if (wall) {
             const std::string& texName = wall->getMiddleTexture();
             const sf::Texture* currentTex = getTextureByName(texName);
             if (currentTex) {
                 drawWallSegmentWithTexture(x, wallTop, wallBottom, geom, color, currentTex);
                 return;
+            } else if (wall->getColor() != sf::Color::White) {
+                 // Use wall-specific color if texture is missing
+                 // Blend wall color with lighting color
+                 sf::Color wallColor = wall->getColor();
+                 wallColor.r = static_cast<uint8_t>(wallColor.r * (color.r / 255.0f));
+                 wallColor.g = static_cast<uint8_t>(wallColor.g * (color.g / 255.0f));
+                 wallColor.b = static_cast<uint8_t>(wallColor.b * (color.b / 255.0f));
+                 drawWallSegment(x, wallTop, wallBottom, geom, wallColor);
+                 return;
             }
         }
         drawWallSegment(x, wallTop, wallBottom, geom, color);
@@ -492,4 +522,75 @@ float SectorRenderer::calculateTextureX(const Wall& wall, sf::Vector2f hitPoint)
     }
     
     return wallX;
+}
+
+void SectorRenderer::renderFloorAndCeiling(int x, const ClipRegion& clip, 
+                                           const WallGeometry& geom,
+                                           sf::Color floorColor, sf::Color ceilColor) {
+    float ceilEnd = std::min(clip.bottom, geom.topY);
+    float floorStart = std::max(clip.top, geom.bottomY);
+    
+    // Render ceiling if visible
+    if (clip.top < ceilEnd) {
+        sf::Vertex v1, v2, v3, v4, v5, v6;
+        float left = static_cast<float>(x);
+        float right = left + 1.0f;
+        
+        v1.position = sf::Vector2f(left, clip.top);
+        v1.color = ceilColor;
+        
+        v2.position = sf::Vector2f(left, ceilEnd);
+        v2.color = ceilColor;
+        
+        v3.position = sf::Vector2f(right, clip.top);
+        v3.color = ceilColor;
+        
+        v4.position = sf::Vector2f(right, clip.top);
+        v4.color = ceilColor;
+        
+        v5.position = sf::Vector2f(left, ceilEnd);
+        v5.color = ceilColor;
+        
+        v6.position = sf::Vector2f(right, ceilEnd);
+        v6.color = ceilColor;
+        
+        floorCeilingVertices_.append(v1);
+        floorCeilingVertices_.append(v2);
+        floorCeilingVertices_.append(v3);
+        floorCeilingVertices_.append(v4);
+        floorCeilingVertices_.append(v5);
+        floorCeilingVertices_.append(v6);
+    }
+    
+    // Render floor if visible
+    if (floorStart < clip.bottom) {
+        sf::Vertex v1, v2, v3, v4, v5, v6;
+        float left = static_cast<float>(x);
+        float right = left + 1.0f;
+        
+        v1.position = sf::Vector2f(left, floorStart);
+        v1.color = floorColor;
+        
+        v2.position = sf::Vector2f(left, clip.bottom);
+        v2.color = floorColor;
+        
+        v3.position = sf::Vector2f(right, floorStart);
+        v3.color = floorColor;
+        
+        v4.position = sf::Vector2f(right, floorStart);
+        v4.color = floorColor;
+        
+        v5.position = sf::Vector2f(left, clip.bottom);
+        v5.color = floorColor;
+        
+        v6.position = sf::Vector2f(right, clip.bottom);
+        v6.color = floorColor;
+        
+        floorCeilingVertices_.append(v1);
+        floorCeilingVertices_.append(v2);
+        floorCeilingVertices_.append(v3);
+        floorCeilingVertices_.append(v4);
+        floorCeilingVertices_.append(v5);
+        floorCeilingVertices_.append(v6);
+    }
 }

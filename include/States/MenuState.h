@@ -49,6 +49,9 @@ private:
     sf::Font* menuFont_ = nullptr;
     
     std::unique_ptr<sf::Sound> selectionSound_;
+    std::unique_ptr<sf::Sound> whooshSound_;
+    std::unique_ptr<sf::Sound> fireLoopSound_;
+    std::unique_ptr<sf::Music> backgroundMusic_;
 
     void skipAnimation();
     void handleButtonClick(const std::string& buttonName);

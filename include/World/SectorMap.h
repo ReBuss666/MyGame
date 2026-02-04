@@ -98,6 +98,28 @@ public:
             if (heightDiff > MAX_STEP_HEIGHT && !isJumping) {
                 return true;
             }
+
+            // Check collisions with walls in the new sector to prevent tunneling
+            for (const auto& wall : endSector->getWalls()) {
+                sf::Vector2f closest = wall.closestPoint(to);
+                sf::Vector2f delta = to - closest;
+                float distSquared = delta.x * delta.x + delta.y * delta.y;
+                
+                if (distSquared < radius * radius) {
+                    if (wall.isSolid()) {
+                        return true;
+                    }
+                    if (wall.isPortal()) {
+                        Sector* neighbor = wall.getNeighborSector();
+                        if (neighbor) {
+                            float neighborHeightDiff = neighbor->getFloorHeight() - endSector->getFloorHeight();
+                            if (neighborHeightDiff > MAX_STEP_HEIGHT && !isJumping) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
         }
         
         return false;

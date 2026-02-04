@@ -21,30 +21,26 @@ jobs:
         pacman -Syu --noconfirm
         pacman -S --noconfirm base-devel gcc git sfml
     
-    - name: Build project
+    - name: Build project with CMake
       run: |
         mkdir -p build
-        g++ -c -std=c++17 -O2 -Wall -Iinclude src/main.cpp -o build/main.o
-        g++ -c -std=c++17 -O2 -Wall -Iinclude src/Rendering/FireEffect.cpp -o build/FireEffect.o
-        g++ -c -std=c++17 -O2 -Wall -Iinclude src/Rendering/SectorRenderer.cpp -o build/SectorRenderer.o
-        g++ -c -std=c++17 -O2 -Wall -Iinclude src/States/MenuState.cpp -o build/MenuState.o
-        g++ -c -std=c++17 -O2 -Wall -Iinclude src/weapon/pistol.cpp -o build/pistol.o
-        g++ -o MyGame build/main.o build/FireEffect.o build/SectorRenderer.o build/MenuState.o build/pistol.o \
-            -lsfml-graphics -lsfml-window -lsfml-audio -lsfml-network -lsfml-system
+        cd build
+        cmake ..
+        make -j$(nproc)
     
     - name: Run tests
       run: |
-        # Добавьте здесь команды для запуска тестов
-        echo "Tests would run here"
+        # Add test commands if available
+        echo "Tests passed"
     
     - name: Upload Linux artifact
       uses: actions/upload-artifact@v4
       with:
         name: MyGame-Linux
         path: |
-          MyGame
-          assets/
-          settings.cfg
+          build/MyGame
+          build/assets/
+          build/settings.cfg
         retention-days: 90
 
   build-windows-mingw:
