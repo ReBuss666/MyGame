@@ -127,9 +127,21 @@ public:
         std::cout << "    - ESC: Pause menu" << std::endl;
 
         gun_ = std::make_unique<Gun>(Assets::PISTOL_FIRE_ANIM);
+
+        // Start background music
+        if (backgroundMusic_.openFromFile("assets/sounds/background-next.mp3")) {
+            backgroundMusic_.setLoop(true);
+            backgroundMusic_.setVolume(GameSettings::getInstance().getMusicVolume() * 100.f);
+            backgroundMusic_.play();
+            std::cout << "[PlayState] Background music started" << std::endl;
+        } else {
+            std::cerr << "[PlayState] Failed to load background music: assets/sounds/background-next.mp3" << std::endl;
+        }
     }
     
     void onExit() override {
+        backgroundMusic_.stop();
+
         if (window_) {
             window_->setMouseCursorVisible(true);
             window_->setMouseCursorGrabbed(false);
@@ -360,6 +372,8 @@ private:
     std::string mapFilePath_;
     std::vector<std::string> mapTextures_;
     sf::RenderWindow* window_ = nullptr;
+
+    sf::Music backgroundMusic_;
 
     bool mode3D_ = true;
     bool mouseLocked_ = false;

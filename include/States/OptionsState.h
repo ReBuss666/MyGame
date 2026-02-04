@@ -191,6 +191,13 @@ private:
         musicOption.value = std::to_string(static_cast<int>(musicOption.sliderValue)) + "%";
         options_.push_back(musicOption);
 
+        Option sfxOption;
+        sfxOption.name = "Effects Volume";
+        sfxOption.type = Option::SLIDER;
+        sfxOption.sliderValue = settings.getSFXVolume() * 100.f;
+        sfxOption.value = std::to_string(static_cast<int>(sfxOption.sliderValue)) + "%";
+        options_.push_back(sfxOption);
+
         if (font_) {
             float startY = 160.f;
             float spacing = 50.f;
@@ -286,6 +293,11 @@ private:
                 else if (opt.name == "Music Volume") {
                     opt.sliderValue = std::clamp(opt.sliderValue + direction * 5.f, 0.f, 100.f);
                     settings.setMusicVolume(opt.sliderValue / 100.f);
+                    opt.value = std::to_string(static_cast<int>(opt.sliderValue)) + "%";
+                }
+                else if (opt.name == "Effects Volume") {
+                    opt.sliderValue = std::clamp(opt.sliderValue + direction * 5.f, 0.f, 100.f);
+                    settings.setSFXVolume(opt.sliderValue / 100.f);
                     opt.value = std::to_string(static_cast<int>(opt.sliderValue)) + "%";
                 }
                 break;

@@ -65,6 +65,15 @@ void MenuState::onEnter() {
     shinePos_ = -1.f;
     targetY_ = WINDOW_HEIGHT / 2.5f - LOGO_OFFSET_Y;
     logoAnimationComplete_ = false;
+
+    // Load selection sound
+    std::string soundPath = "assets/sounds/choice.mp3";
+    if (sf::SoundBuffer* buffer = ResourceManager::getInstance().getSoundBuffer(soundPath)) {
+        selectionSound_.setBuffer(*buffer);
+        std::cout << "[MenuState] Loaded selection sound: " << soundPath << std::endl;
+    } else {
+        std::cerr << "[MenuState] Failed to load sound: " << soundPath << std::endl;
+    }
     
     std::cout << "=== MenuState: Loaded ===" << std::endl;
 }
@@ -296,6 +305,12 @@ void MenuState::cycleMap(int direction) {
         mapNameText_->setString("< " + availableMaps_[selectedMapIndex_] + " >");
         sf::FloatRect textBounds = mapNameText_->getLocalBounds();
         mapNameText_->setOrigin({textBounds.size.x / 2.f, textBounds.size.y / 2.f});
+    }
+
+    // Play selection sound
+    if (selectionSound_.getBuffer()) {
+        selectionSound_.setVolume(GameSettings::getInstance().getSFXVolume() * 100.f);
+        selectionSound_.play();
     }
     
     std::cout << "[MenuState] Selected map: " << availableMaps_[selectedMapIndex_] << std::endl;
