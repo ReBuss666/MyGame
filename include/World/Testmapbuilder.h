@@ -155,6 +155,13 @@ public:
                     sector.addWall(w);
                 }
 
+                // Randomly mark roughly 1 in 50 sectors as an Exit (but ensure high index to be far)
+                // Actually, just picking the very last valid sector is more reliable for "far" in this generation scheme
+                if (index == width * height - 1) {
+                    sector.setFloorColor(sf::Color::Green);
+                    sector.setFlag(Sector::FLAG_EXIT);
+                }
+                
                 map.addSector(std::move(sector));
                 grid[index].sectorId = index + 1;
             }

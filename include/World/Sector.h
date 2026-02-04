@@ -144,6 +144,7 @@ public:
         FLAG_SECRET = 1 << 1,
         FLAG_WATER = 1 << 2,
         FLAG_OUTDOOR = 1 << 3,
+        FLAG_EXIT = 1 << 4,
     };
 
     bool hasFlag(SectorFlags flag) const { return (flags_ & flag) != 0; }

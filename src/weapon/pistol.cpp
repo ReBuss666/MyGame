@@ -15,10 +15,21 @@ Gun::Gun(const std::string& basePath, int frameCount) {
     }
     
     loadFrames(paths);
+    loadSound("assets/sounds/pistol.mp3");
 }
 
 Gun::Gun(const std::vector<std::string>& framePaths) {
     loadFrames(framePaths);
+    loadSound("assets/sounds/pistol.mp3");
+}
+
+void Gun::loadSound(const std::string& path) {
+    if (auto* buffer = ResourceManager::getInstance().getSoundBuffer(path)) {
+        shootSoundBuffer_ = *buffer;
+        std::cout << "[Gun] Loaded sound: " << path << " (" << shootSoundBuffer_.getDuration().asSeconds() << "s)" << std::endl;
+    } else {
+        std::cerr << "[Gun] Failed to load sound: " << path << std::endl;
+    }
 }
 
 void Gun::loadFrames(const std::vector<std::string>& paths) {
@@ -44,6 +55,21 @@ void Gun::update(float deltaTime, bool isMoving, bool isSprinting,
     updateAnimation(deltaTime);
     updateBob(deltaTime, isMoving, isSprinting);
     updateSway(deltaTime, mouseDeltaX, mouseDeltaY);
+    updateSounds(deltaTime);
+}
+
+void Gun::updateSounds(float deltaTime) {
+    auto it = activeSounds_.begin();
+    while (it != activeSounds_.end()) {
+        it->second += deltaTime; // Increment time
+        
+        // Remove if stopped or exceeds 2 seconds (as requested)
+        if (it->first.getStatus() == sf::Sound::Status::Stopped || it->second > 2.0f) {
+            it = activeSounds_.erase(it);
+        } else {
+            ++it;
+        }
+    }
 }
 
 void Gun::updateBob(float deltaTime, bool isMoving, bool isSprinting) {
@@ -129,6 +155,12 @@ void Gun::shoot() {
         state_ = GunState::Shooting;
         animationTimer_ = 0.f;
         currentFrame_ = 0;
+        
+        // Play sound
+        if (shootSoundBuffer_.getSampleCount() > 0) {
+            activeSounds_.emplace_back(sf::Sound(shootSoundBuffer_), 0.0f);
+            activeSounds_.back().first.play();
+        }
     }
 }
 

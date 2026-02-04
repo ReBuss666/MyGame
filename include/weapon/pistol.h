@@ -1,7 +1,9 @@
 #pragma once
 #include <SFML/Graphics.hpp>
+#include <SFML/Audio.hpp>
 #include <vector>
 #include <string>
+#include <list>
 
 enum class GunState { Idle, Shooting };
 
@@ -40,6 +42,13 @@ public:
 private:
     std::vector<sf::Texture*> frames_;
     std::unique_ptr<sf::Sprite> sprite_;
+
+    // Audio
+    sf::SoundBuffer shootSoundBuffer_;
+    // Store sound and its playback time to enforce the 2 second limit
+    std::list<std::pair<sf::Sound, float>> activeSounds_;
+    void loadSound(const std::string& path);
+    void updateSounds(float deltaTime);
     
     GunState state_ = GunState::Idle;
     size_t currentFrame_ = 0;

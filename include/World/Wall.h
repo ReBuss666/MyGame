@@ -3,6 +3,15 @@
 #include <memory>
 #include <string>
 #include <cmath>
+#include <vector>
+#include <algorithm>
+
+struct Decal {
+    float distanceAlongWall; // Horizontal position on wall (0 = start)
+    float height;            // World Z height
+    float size;
+    float timer;             // Lifetime
+};
 
 class Sector;
 
@@ -34,6 +43,22 @@ public:
     void setUpperTexture(const std::string& tex) { upperTexture_ = tex; }
     void setMiddleTexture(const std::string& tex) { middleTexture_ = tex; }
     void setLowerTexture(const std::string& tex) { lowerTexture_ = tex; }
+
+    // Decal System
+    void addDecal(float dist, float height, float size, float duration) {
+        decals_.push_back({dist, height, size, duration});
+    }
+    
+    const std::vector<Decal>& getDecals() const { return decals_; }
+    
+    void updateDecals(float deltaTime) {
+         // remove expired decals
+         decals_.erase(std::remove_if(decals_.begin(), decals_.end(),
+            [deltaTime](Decal& d) {
+                d.timer -= deltaTime;
+                return d.timer <= 0.0f;
+            }), decals_.end());
+    }
 
     float getLength() const {
         sf::Vector2f delta = end_ - start_;
@@ -96,4 +121,6 @@ private:
     
     sf::Color color_ = sf::Color::White;
     int nextSectorId_ = -1;
+    
+    std::vector<Decal> decals_;
 };

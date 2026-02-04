@@ -36,6 +36,7 @@ struct WallGeometry {
     float bottomY;
     float textureX;
     float screenScaleFactor;
+    float trueDistAlongWall;
 };
 
 class SectorRenderer {
@@ -64,6 +65,7 @@ private:
     float renderDistance_;
     float currentPitch_;
     const sf::Texture* wallTexture_;
+    const sf::Texture* holeTexture_ = nullptr; // Bullet hole texture
     sf::VertexArray columnVertices_;
     sf::VertexArray floorCeilingVertices_;
     
@@ -72,6 +74,7 @@ private:
     
     // Batch rendering by texture
     std::unordered_map<const sf::Texture*, std::vector<sf::Vertex>> textureBatches_;
+    std::unordered_map<const sf::Texture*, std::vector<sf::Vertex>> decalBatches_;
 
     // Разделение на более мелкие методы
     void drawBackground(sf::RenderTarget& target, const Sector* sector);
@@ -96,6 +99,8 @@ private:
                         const ClipRegion& clip,
                         const WallGeometry& geom,
                         sf::Color color,
+                        const RenderContext& context,
+                        float distance,
                         const Wall* wall = nullptr);
     
     void renderFloorAndCeiling(int x, const ClipRegion& clip, 
@@ -126,6 +131,9 @@ private:
                                     const WallGeometry& geom,
                                     sf::Color color,
                                     const sf::Texture* texture);
+                                    
+    void drawDecalSegment(int x, const WallGeometry& geom, const Wall& wall, 
+                          const RenderContext& context, float distance);
     
     bool checkRayWallIntersection(sf::Vector2f origin,
                                   sf::Vector2f direction,

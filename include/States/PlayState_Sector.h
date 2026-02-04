@@ -233,10 +233,51 @@ public:
             }
             // Shooting with left mouse button when mouse is locked
             if (mode3D_ && mouseLocked_ && mousePressed->button == sf::Mouse::Button::Left) {
-                if (gun_) {
-                    gun_->shoot();
-                }
+                fireWeapon();
             }
+        }
+    }
+
+    void fireWeapon() {
+        if (gun_) {
+            gun_->shoot();
+        }
+        
+        if (player_ && currentSector_) {
+             float angle = player_->getViewAngle();
+             sf::Vector2f dir(std::cos(angle), std::sin(angle));
+             sf::Vector2f origin = player_->getPosition();
+             
+             // Cast ray
+             auto result = sectorMap_.raycast(origin, dir, 50.0f);
+             
+             if (result.hit && result.wall) {
+                 // Calculate Hit Height (Z)
+                 // pitch > 0 means looking down (usually in setup), pitch < 0 looking up
+                 // Z = eyeZ - pitch * dist * tan(fov/2)
+                 float pitch = player_->getPitchAngle();
+                 float dist = result.distance;
+                 float eyeZ = player_->getEyeHeight();
+                 
+                 // In SectorRenderer logic:
+                 // pixelY = H/2 - pitch*H/2 - (worldZ - eye) * scale / dist
+                 // Center hit implies pixelY = H/2.
+                 // 0 = -pitch*H/2 - (hZ - eye)*scale/dist
+                 // (hZ - eye) * scale / dist = -pitch * H/2
+                 // hZ - eye = -pitch * H/2 * dist / scale
+                 // scale = (H/2) / tan(fov/2)
+                 // hZ - eye = -pitch * H/2 * dist / (H/2 / tan)
+                 // hZ - eye = -pitch * dist * tan
+                 // hZ = eye - pitch * dist * tan(fov/2)
+                 
+                 float hitZ = eyeZ - pitch * dist * std::tan(FOV_RADIANS / 2.0f);
+                 
+                 // Add decal
+                 // Size approx 10cm = 0.1f world units
+                 // Duration 30s
+                 result.wall->addDecal(result.distAlongWall, hitZ, 0.15f, 30.0f);
+                 std::cout << "[PlayState] Bullet hole at dist=" << result.distance << " height=" << hitZ << std::endl;
+             }
         }
     }
     
@@ -289,6 +330,13 @@ public:
             bool isSprinting = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::LShift) ||
                               sf::Keyboard::isKeyPressed(sf::Keyboard::Key::RShift);
             gun_->update(deltaTime, isMoving, isSprinting, lastMouseDeltaX_, lastMouseDeltaY_);
+        }
+
+        // Update Bullet Holes
+        for (auto& [id, sector] : sectorMap_.getSectors()) {
+            for (auto& wall : sector.getWalls()) {
+                wall.updateDecals(deltaTime);
+            }
         }
     }
 
@@ -392,12 +440,28 @@ private:
         Sector* newSector = sectorMap_.findSectorAt(player_->getPosition());
         
         if (newSector != currentSector_) {
-            if (newSector) {
-                std::cout << "[PlayState] Player entered sector " << newSector->getId() << std::endl;
+            currentSector_ = newSector;
+            if (currentSector_) {
+               // Check for EXIT flag
+               if (currentSector_->hasFlag(Sector::FLAG_EXIT)) {
+                   std::cout << "[PlayState] FOUND EXIT! Generating new level..." << std::endl;
+                   // Simple level transition: Generate new random map
+                   sectorMap_ = TestMapBuilder::generateRandomMap(12, 12);
+                   
+                   // Reset player position to start of new map (usually sector 1 is at 0,0)
+                   // Sector 1 center is approx (CELL_SIZE/2, CELL_SIZE/2)
+                   // Let's assume the first sector generated has ID 1.
+                   if (Sector* start = sectorMap_.getSector(1)) {
+                       player_->setPosition(start->getCenter());
+                       currentSector_ = start;
+                   }
+                   
+                   // Play success sound if any (using existing selection sound for now)
+                   // But we don't have access to audio directly here easily without adding more resources
+               }
             } else {
                 std::cout << "[PlayState] WARNING: Player outside all sectors!" << std::endl;
             }
-            currentSector_ = newSector;
         }
     }
 
