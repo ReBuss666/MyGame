@@ -111,21 +111,19 @@ jobs:
             -lsfml-graphics -lsfml-window -lsfml-audio -lsfml-system \
             -lopengl32 -lwinmm -lgdi32 -static-libgcc -static-libstdc++
     
-    - name: Copy SFML DLLs
+    - name: Prepare release
       run: |
-        cp /usr/x86_64-w64-mingw32/bin/*.dll . || true
-    
-    - name: Run tests
-      run: |
-        echo "Tests would run here (wine could be used for Windows binaries)"
-    
+        mkdir -p release/MyGame
+        cp MyGame.exe release/MyGame/
+        cp -r assets release/MyGame/
+        cp settings.cfg release/MyGame/
+        cp /usr/x86_64-w64-mingw32/bin/*.dll release/MyGame/ || true
+        # Clean up unnecessary DLLs if possible, or just keep them to be safe
+        strip release/MyGame/MyGame.exe
+
     - name: Upload Windows MinGW artifact
       uses: actions/upload-artifact@v4
       with:
         name: MyGame-Windows-MinGW
-        path: |
-          MyGame.exe
-          *.dll
-          assets/
-          settings.cfg
+        path: release/MyGame
         retention-days: 90

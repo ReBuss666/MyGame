@@ -1,4 +1,5 @@
 #include "../../include/States/MenuState.h"
+#include "../../include/Core/GameSettings.h"
 #include <iostream>
 #include <cmath>
 
