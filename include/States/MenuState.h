@@ -48,7 +48,7 @@ private:
     std::unique_ptr<sf::Text> mapNameText_;
     sf::Font* menuFont_ = nullptr;
     
-    sf::Sound selectionSound_;
+    std::unique_ptr<sf::Sound> selectionSound_;
 
     void skipAnimation();
     void handleButtonClick(const std::string& buttonName);

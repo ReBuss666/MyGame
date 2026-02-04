@@ -130,7 +130,7 @@ public:
 
         // Start background music
         if (backgroundMusic_.openFromFile("assets/sounds/background-next.mp3")) {
-            backgroundMusic_.setLoop(true);
+            backgroundMusic_.setLooping(true);
             backgroundMusic_.setVolume(GameSettings::getInstance().getMusicVolume() * 100.f);
             backgroundMusic_.play();
             std::cout << "[PlayState] Background music started" << std::endl;
