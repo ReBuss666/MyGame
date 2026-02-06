@@ -48,6 +48,12 @@ public:
         return sf::Color(lightLevel_, lightLevel_, lightLevel_);
     }
 
+    sf::Color getFloorColor() const { return floorColor_; }
+    void setFloorColor(sf::Color c) { floorColor_ = c; }
+    
+    sf::Color getCeilingColor() const { return ceilingColor_; }
+    void setCeilingColor(sf::Color c) { ceilingColor_ = c; }
+
     std::vector<Wall>& getWalls() { return walls_; }
     const std::vector<Wall>& getWalls() const { return walls_; }
     
@@ -138,6 +144,7 @@ public:
         FLAG_SECRET = 1 << 1,
         FLAG_WATER = 1 << 2,
         FLAG_OUTDOOR = 1 << 3,
+        FLAG_EXIT = 1 << 4,
     };
 
     bool hasFlag(SectorFlags flag) const { return (flags_ & flag) != 0; }
@@ -155,4 +162,7 @@ private:
     uint8_t lightLevel_;
     std::vector<Wall> walls_;
     uint32_t flags_ = 0;
+    
+    sf::Color floorColor_ = sf::Color(100, 100, 100);
+    sf::Color ceilingColor_ = sf::Color(50, 50, 50);
 };

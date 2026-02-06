@@ -1,4 +1,5 @@
 #include "../../include/Rendering/SectorRenderer.h"
+#include "../../include/Core/ResourceManager.h"
 #include <cmath>
 #include <algorithm>
 #include <iostream>
@@ -11,6 +12,18 @@ SectorRenderer::SectorRenderer(int screenWidth, int screenHeight)
     , currentPitch_(0.0f)
     , wallTexture_(nullptr)
 {
+    // Try to load hole texture (optional)
+    std::string holePath = "assets/textures/decals/hole.png";
+    holeTexture_ = ResourceManager::getInstance().getTexture(holePath);
+    if (!holeTexture_) {
+         // Create a simple black circle texture programmatically if not found?
+         // Or just leave it null and draw black quads.
+         std::cout << "[SectorRenderer] Hole texture not found at " << holePath << ". Will use black quad." << std::endl;
+    } else {
+        std::cout << "[SectorRenderer] Loaded hole texture." << std::endl;
+        const_cast<sf::Texture*>(holeTexture_)->setSmooth(true);
+    }
+
     columnVertices_.setPrimitiveType(sf::PrimitiveType::Triangles);
     columnVertices_.resize(screenWidth_ * 6 * 10);
     
@@ -80,8 +93,10 @@ void SectorRenderer::render(sf::RenderTarget& target,
         return;
     }
 
-    // Clear texture batches for this frame
+    // Clear texture batches and geometry buffers for this frame
     textureBatches_.clear();
+    decalBatches_.clear();
+    floorCeilingVertices_.clear();
 
     // Подготовка контекста рендеринга
     RenderContext context;
@@ -103,6 +118,11 @@ void SectorRenderer::render(sf::RenderTarget& target,
     
     std::cout << "[SectorRenderer] Collected " << textureBatches_.size() << " texture batches" << std::endl;
     
+    // Draw floor and ceiling geometry
+    if (floorCeilingVertices_.getVertexCount() > 0) {
+        target.draw(floorCeilingVertices_);
+    }
+
     // Draw all texture batches
     for (const auto& pair : textureBatches_) {
         const sf::Texture* tex = pair.first;
@@ -110,9 +130,24 @@ void SectorRenderer::render(sf::RenderTarget& target,
         
         std::cout << "[SectorRenderer] Batch has " << vertices.size() << " vertices" << std::endl;
         
-        if (!vertices.empty() && tex) {
+        if (!vertices.empty()) {
             sf::RenderStates states;
             states.texture = tex;
+            target.draw(vertices.data(), vertices.size(), sf::PrimitiveType::Triangles, states);
+        }
+    }
+
+    // Draw all decal batches (AFTER walls to ensure visibility)
+    for (const auto& pair : decalBatches_) {
+        const sf::Texture* tex = pair.first;
+        const std::vector<sf::Vertex>& vertices = pair.second;
+        
+        if (!vertices.empty()) {
+            sf::RenderStates states;
+            states.texture = tex;
+            // Use Additive blending for "glowing" or hole-like effects? 
+            // Or regular Alpha Blending (default). 
+            // Just basic draw for now.
             target.draw(vertices.data(), vertices.size(), sf::PrimitiveType::Triangles, states);
         }
     }
@@ -144,10 +179,25 @@ void SectorRenderer::renderColumn(int x, const RenderContext& context,
                                                         *result.wall, hitPoint, result.hitSide);
         const sf::Color color = calculateWallColor(correctedDist, *sector, result.hitSide);
 
+        // Draw Floor and Ceiling
+        sf::Color floorColor = sector->getFloorColor();
+        sf::Color ceilColor = sector->getCeilingColor();
+
+        // Apply simplistic distance fog
+        float fogFactor = 1.0f / (1.0f + correctedDist * 0.05f);
+        floorColor.r = static_cast<uint8_t>(floorColor.r * fogFactor);
+        floorColor.g = static_cast<uint8_t>(floorColor.g * fogFactor);
+        floorColor.b = static_cast<uint8_t>(floorColor.b * fogFactor);        
+        ceilColor.r = static_cast<uint8_t>(ceilColor.r * fogFactor);
+        ceilColor.g = static_cast<uint8_t>(ceilColor.g * fogFactor);
+        ceilColor.b = static_cast<uint8_t>(ceilColor.b * fogFactor);
+
+        renderFloorAndCeiling(x, clip, geom, floorColor, ceilColor);
+
         if (result.wall->isPortal()) {
             Sector* neighbor = result.wall->getNeighborSector();
             if (!neighbor) {
-                renderSolidWall(x, clip, geom, color, result.wall);
+                renderSolidWall(x, clip, geom, color, context, correctedDist, result.wall);
                 break;
             }
 
@@ -171,7 +221,7 @@ void SectorRenderer::renderColumn(int x, const RenderContext& context,
             rayOrigin = hitPoint + rayDir * 0.1f;
             sector = neighbor;
         } else {
-            renderSolidWall(x, clip, geom, color, result.wall);
+            renderSolidWall(x, clip, geom, color, context, correctedDist, result.wall);
             break;
         }
     }
@@ -223,7 +273,18 @@ WallGeometry SectorRenderer::calculateWallGeometry(const RenderContext& context,
     const float textureHeight = wallTexture_ ? static_cast<float>(wallTexture_->getSize().y) : 64.f;
     const float zoomFactor = 2.f;
     geom.screenScaleFactor = (textureHeight * zoomFactor) / wallScreenHeight;
-    geom.textureX = calculateTextureX(wall, hitPoint);
+    
+    // Calculate wall texture coordinate
+    // Recalculate true distance along wall
+    sf::Vector2f diff = hitPoint - wall.getStart();
+    float distAlongWall = std::sqrt(diff.x * diff.x + diff.y * diff.y);
+    geom.trueDistAlongWall = distAlongWall;
+    
+    // geom.textureX = calculateTextureX(wall, hitPoint);
+    // Reuse distAlongWall for textureX for efficiency
+    float wallX = std::fmod(distAlongWall, TILE_SIZE) / TILE_SIZE;
+    if (wallX < 0.0f) wallX += 1.0f;
+    geom.textureX = wallX;
 
     return geom;
 }
@@ -247,21 +308,35 @@ void SectorRenderer::renderSolidWall(int x,
                                     const ClipRegion& clip,
                                     const WallGeometry& geom,
                                     sf::Color color,
+                                    const RenderContext& context,
+                                    float distance,
                                     const Wall* wall) {
     const float wallTop = std::max(clip.top, geom.topY);
     const float wallBottom = std::min(clip.bottom, geom.bottomY);
     
     if (wallTop < wallBottom) {
-        // If wall specified, try to use its texture
+        // If wall specified, try to use its texture or color
         if (wall) {
             const std::string& texName = wall->getMiddleTexture();
             const sf::Texture* currentTex = getTextureByName(texName);
             if (currentTex) {
                 drawWallSegmentWithTexture(x, wallTop, wallBottom, geom, color, currentTex);
+                drawDecalSegment(x, geom, *wall, context, distance);
                 return;
+            } else if (wall->getColor() != sf::Color::White) {
+                 // Use wall-specific color if texture is missing
+                 // Blend wall color with lighting color
+                 sf::Color wallColor = wall->getColor();
+                 wallColor.r = static_cast<uint8_t>(wallColor.r * (color.r / 255.0f));
+                 wallColor.g = static_cast<uint8_t>(wallColor.g * (color.g / 255.0f));
+                 wallColor.b = static_cast<uint8_t>(wallColor.b * (color.b / 255.0f));
+                 drawWallSegment(x, wallTop, wallBottom, geom, wallColor);
+                 drawDecalSegment(x, geom, *wall, context, distance);
+                 return;
             }
         }
         drawWallSegment(x, wallTop, wallBottom, geom, color);
+        if (wall) drawDecalSegment(x, geom, *wall, context, distance);
     }
 }
 
@@ -492,4 +567,148 @@ float SectorRenderer::calculateTextureX(const Wall& wall, sf::Vector2f hitPoint)
     }
     
     return wallX;
+}
+
+void SectorRenderer::renderFloorAndCeiling(int x, const ClipRegion& clip, 
+                                           const WallGeometry& geom,
+                                           sf::Color floorColor, sf::Color ceilColor) {
+    float ceilEnd = std::min(clip.bottom, geom.topY);
+    float floorStart = std::max(clip.top, geom.bottomY);
+    
+    // Render ceiling if visible
+    if (clip.top < ceilEnd) {
+        sf::Vertex v1, v2, v3, v4, v5, v6;
+        float left = static_cast<float>(x);
+        float right = left + 1.0f;
+        
+        v1.position = sf::Vector2f(left, clip.top);
+        v1.color = ceilColor;
+        
+        v2.position = sf::Vector2f(left, ceilEnd);
+        v2.color = ceilColor;
+        
+        v3.position = sf::Vector2f(right, clip.top);
+        v3.color = ceilColor;
+        
+        v4.position = sf::Vector2f(right, clip.top);
+        v4.color = ceilColor;
+        
+        v5.position = sf::Vector2f(left, ceilEnd);
+        v5.color = ceilColor;
+        
+        v6.position = sf::Vector2f(right, ceilEnd);
+        v6.color = ceilColor;
+        
+        floorCeilingVertices_.append(v1);
+        floorCeilingVertices_.append(v2);
+        floorCeilingVertices_.append(v3);
+        floorCeilingVertices_.append(v4);
+        floorCeilingVertices_.append(v5);
+        floorCeilingVertices_.append(v6);
+    }
+    
+    // Render floor if visible
+    if (floorStart < clip.bottom) {
+        sf::Vertex v1, v2, v3, v4, v5, v6;
+        float left = static_cast<float>(x);
+        float right = left + 1.0f;
+        
+        v1.position = sf::Vector2f(left, floorStart);
+        v1.color = floorColor;
+        
+        v2.position = sf::Vector2f(left, clip.bottom);
+        v2.color = floorColor;
+        
+        v3.position = sf::Vector2f(right, floorStart);
+        v3.color = floorColor;
+        
+        v4.position = sf::Vector2f(right, floorStart);
+        v4.color = floorColor;
+        
+        v5.position = sf::Vector2f(left, clip.bottom);
+        v5.color = floorColor;
+        
+        v6.position = sf::Vector2f(right, clip.bottom);
+        v6.color = floorColor;
+        
+        floorCeilingVertices_.append(v1);
+        floorCeilingVertices_.append(v2);
+        floorCeilingVertices_.append(v3);
+        floorCeilingVertices_.append(v4);
+        floorCeilingVertices_.append(v5);
+        floorCeilingVertices_.append(v6);
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+            
+void SectorRenderer::drawDecalSegment(int x, const WallGeometry& geom, const Wall& wall,
+                                      const RenderContext& context, float distance) {
+    const auto& decals = wall.getDecals();
+    if (decals.empty()) return;
+
+    for (const auto& decal : decals) {
+        float sizeV = decal.size;
+        float sizeH = decal.size * 64.0f; 
+        
+        float distMinH = decal.distanceAlongWall - sizeH/2;
+        float distMaxH = decal.distanceAlongWall + sizeH/2;
+        
+        if (geom.trueDistAlongWall >= distMinH && geom.trueDistAlongWall <= distMaxH) {
+             float decalCenterY = context.screenCenterY - (decal.height - context.playerEyeZ) * 
+                                  context.projectionDistance * 64.0f / distance;
+                                      
+             float decalScreenHeight = sizeV * (context.projectionDistance * 64.0f / distance);
+             
+             float decalTop = decalCenterY - decalScreenHeight / 2.0f;
+             float decalBottom = decalCenterY + decalScreenHeight / 2.0f;
+             
+             float tx = (geom.trueDistAlongWall - distMinH) / sizeH;
+             tx = std::max(0.01f, std::min(0.99f, tx));
+
+             // SFML 3 Vertex Fix
+             sf::Vertex v1, v2;
+             v1.position = sf::Vector2f(static_cast<float>(x), decalTop);
+             v1.color = sf::Color::White;
+             
+             v2.position = sf::Vector2f(static_cast<float>(x), decalBottom);
+             v2.color = sf::Color::White;
+
+             /*
+             if (x == screenWidth_ / 2) { 
+                 std::cout << "Drawing decal at x=" << x << " dist=" << geom.trueDistAlongWall << " texX=" << tx << std::endl;
+             }
+             */
+
+             float texW = holeTexture_ ? holeTexture_->getSize().x : 32.f;
+             float texH = holeTexture_ ? holeTexture_->getSize().y : 32.f;
+             v1.texCoords = sf::Vector2f(tx * texW, 0.f);
+             v2.texCoords = sf::Vector2f(tx * texW, texH);
+             
+             sf::Vertex v3 = v1; v3.position.x += 1.0f;
+             sf::Vertex v4 = v2; v4.position.x += 1.0f;
+             
+             // Use nullptr as key for black quad batch if texture missing, or holeTexture_
+             const sf::Texture* batchKey = holeTexture_ ? holeTexture_ : nullptr;
+             
+             if (!holeTexture_) {
+                 v1.color = sf::Color::Black; v2.color = sf::Color::Black;
+                 v3.color = sf::Color::Black; v4.color = sf::Color::Black;
+             }
+
+             std::vector<sf::Vertex>& batch = decalBatches_[batchKey];
+             batch.push_back(v3); batch.push_back(v1); batch.push_back(v2);
+             batch.push_back(v3); batch.push_back(v2); batch.push_back(v4);
+        }
+    }
 }

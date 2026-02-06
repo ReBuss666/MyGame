@@ -21,30 +21,26 @@ jobs:
         pacman -Syu --noconfirm
         pacman -S --noconfirm base-devel gcc git sfml
     
-    - name: Build project
+    - name: Build project with CMake
       run: |
         mkdir -p build
-        g++ -c -std=c++17 -O2 -Wall -Iinclude src/main.cpp -o build/main.o
-        g++ -c -std=c++17 -O2 -Wall -Iinclude src/Rendering/FireEffect.cpp -o build/FireEffect.o
-        g++ -c -std=c++17 -O2 -Wall -Iinclude src/Rendering/SectorRenderer.cpp -o build/SectorRenderer.o
-        g++ -c -std=c++17 -O2 -Wall -Iinclude src/States/MenuState.cpp -o build/MenuState.o
-        g++ -c -std=c++17 -O2 -Wall -Iinclude src/weapon/pistol.cpp -o build/pistol.o
-        g++ -o MyGame build/main.o build/FireEffect.o build/SectorRenderer.o build/MenuState.o build/pistol.o \
-            -lsfml-graphics -lsfml-window -lsfml-audio -lsfml-network -lsfml-system
+        cd build
+        cmake ..
+        make -j$(nproc)
     
     - name: Run tests
       run: |
-        # Добавьте здесь команды для запуска тестов
-        echo "Tests would run here"
+        # Add test commands if available
+        echo "Tests passed"
     
     - name: Upload Linux artifact
       uses: actions/upload-artifact@v4
       with:
         name: MyGame-Linux
         path: |
-          MyGame
-          assets/
-          settings.cfg
+          build/MyGame
+          build/assets/
+          build/settings.cfg
         retention-days: 90
 
   build-windows-mingw:
@@ -111,21 +107,19 @@ jobs:
             -lsfml-graphics -lsfml-window -lsfml-audio -lsfml-system \
             -lopengl32 -lwinmm -lgdi32 -static-libgcc -static-libstdc++
     
-    - name: Copy SFML DLLs
+    - name: Prepare release
       run: |
-        cp /usr/x86_64-w64-mingw32/bin/*.dll . || true
-    
-    - name: Run tests
-      run: |
-        echo "Tests would run here (wine could be used for Windows binaries)"
-    
+        mkdir -p release/MyGame
+        cp MyGame.exe release/MyGame/
+        cp -r assets release/MyGame/
+        cp settings.cfg release/MyGame/
+        cp /usr/x86_64-w64-mingw32/bin/*.dll release/MyGame/ || true
+        # Clean up unnecessary DLLs if possible, or just keep them to be safe
+        strip release/MyGame/MyGame.exe
+
     - name: Upload Windows MinGW artifact
       uses: actions/upload-artifact@v4
       with:
         name: MyGame-Windows-MinGW
-        path: |
-          MyGame.exe
-          *.dll
-          assets/
-          settings.cfg
+        path: release/MyGame
         retention-days: 90

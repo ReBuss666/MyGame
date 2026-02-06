@@ -3,6 +3,15 @@
 #include <memory>
 #include <string>
 #include <cmath>
+#include <vector>
+#include <algorithm>
+
+struct Decal {
+    float distanceAlongWall; // Horizontal position on wall (0 = start)
+    float height;            // World Z height
+    float size;
+    float timer;             // Lifetime
+};
 
 class Sector;
 
@@ -34,6 +43,22 @@ public:
     void setUpperTexture(const std::string& tex) { upperTexture_ = tex; }
     void setMiddleTexture(const std::string& tex) { middleTexture_ = tex; }
     void setLowerTexture(const std::string& tex) { lowerTexture_ = tex; }
+
+    // Decal System
+    void addDecal(float dist, float height, float size, float duration) {
+        decals_.push_back({dist, height, size, duration});
+    }
+    
+    const std::vector<Decal>& getDecals() const { return decals_; }
+    
+    void updateDecals(float deltaTime) {
+         // remove expired decals
+         decals_.erase(std::remove_if(decals_.begin(), decals_.end(),
+            [deltaTime](Decal& d) {
+                d.timer -= deltaTime;
+                return d.timer <= 0.0f;
+            }), decals_.end());
+    }
 
     float getLength() const {
         sf::Vector2f delta = end_ - start_;
@@ -79,6 +104,12 @@ public:
     uint32_t getFlags() const { return flags_; }
     void setFlags(uint32_t flags) { flags_ = flags; }
 
+    sf::Color getColor() const { return color_; }
+    void setColor(sf::Color c) { color_ = c; }
+
+    int getNextSectorId() const { return nextSectorId_; }
+    void setNextSectorId(int id) { nextSectorId_ = id; }
+
 private:
     sf::Vector2f start_;
     sf::Vector2f end_;
@@ -87,4 +118,9 @@ private:
     std::string middleTexture_;
     std::string lowerTexture_;
     uint32_t flags_;
+    
+    sf::Color color_ = sf::Color::White;
+    int nextSectorId_ = -1;
+    
+    std::vector<Decal> decals_;
 };
