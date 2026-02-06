@@ -89,19 +89,20 @@ void MenuState::onEnter() {
     if (sf::SoundBuffer* buffer = ResourceManager::getInstance().getSoundBuffer(firePath)) {
         fireLoopSound_ = std::make_unique<sf::Sound>(*buffer);
         fireLoopSound_->setLooping(true);
+        fireLoopSound_->setVolume(50.f); // Campfire effect volume
         fireLoopSound_->play();
         std::cout << "[MenuState] Playing fire loop" << std::endl;
     }
 
-    // Load background music
+    // Load background music (Mountains)
     backgroundMusic_ = std::make_unique<sf::Music>();
-    if (backgroundMusic_->openFromFile("assets/sounds/background-next.mp3")) {
+    if (backgroundMusic_->openFromFile("assets/sounds/Mountains.mp3")) {
         backgroundMusic_->setLooping(true);
-        backgroundMusic_->setVolume(20.f); // Small volume as requested
+        backgroundMusic_->setVolume(30.f); // Background music volume
         backgroundMusic_->play();
-        std::cout << "[MenuState] Playing background music (low volume)" << std::endl;
+        std::cout << "[MenuState] Playing Mountains background music" << std::endl;
     } else {
-        std::cerr << "[MenuState] Failed to load background music" << std::endl;
+        std::cerr << "[MenuState] Failed to load Mountains background music" << std::endl;
     }
 
     std::cout << "=== MenuState: Loaded ===" << std::endl;
